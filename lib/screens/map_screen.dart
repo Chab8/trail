@@ -11,20 +11,24 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   MapboxMap? mapboxMap;
 
-  void _onMapCreated(MapboxMap controller) {
+  Future<void> _onMapCreated(MapboxMap controller) async {
     mapboxMap = controller;
+
+    // Sacamos el indicador de escala y el botón de la brújula del mapa.
+    await mapboxMap?.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
+    await mapboxMap?.compass.updateSettings(CompassSettings(enabled: false));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // El mapa queda excluido del fondo oscuro general de la app.
+      backgroundColor: Colors.white,
       appBar: AppBar(title: const Text('Mapa')),
       body: MapWidget(
         key: const ValueKey('mapWidget'),
         styleUri: MapboxStyles.MAPBOX_STREETS,
         cameraOptions: CameraOptions(
-          // Centrado en San Miguel de Tucumán, para que veas algo
-          // reconocible apenas abra el mapa.
           center: Point(coordinates: Position(-65.2226, -26.8241)),
           zoom: 12.0,
         ),

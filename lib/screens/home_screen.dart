@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart' hide Position;
-import 'login_screen.dart';
-import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +14,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _onMapCreated(MapboxMap controller) async {
     mapboxMap = controller;
+
+    // Sacamos el indicador de escala y el botón de la brújula del mapa.
+    await mapboxMap?.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
+    await mapboxMap?.compass.updateSettings(CompassSettings(enabled: false));
+
     await _goToUserLocation();
   }
 
@@ -47,35 +49,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _logout(BuildContext context) async {
-    await Supabase.instance.client.auth.signOut();
-    if (context.mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Trail'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ProfileScreen()),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _logout(context),
-          ),
-        ],
-      ),
+      // El mapa queda excluido del fondo oscuro general de la app.
+      backgroundColor: Colors.white,
       body: MapWidget(
         key: const ValueKey('mapWidget'),
         styleUri: 'mapbox://styles/chab8/cmm6hxker009n01s8ftpbgmdc',

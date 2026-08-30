@@ -24,7 +24,13 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Trail',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.deepPurple,
+          brightness: Brightness.dark,
+        ),
+        // Fondo general de la app (se usa en todas las pantallas,
+        // salvo el mapa, que lo pisa explícitamente).
+        scaffoldBackgroundColor: const Color(0xFF242424),
         useMaterial3: true,
       ),
       home: const AuthGate(),

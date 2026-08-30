@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class LiquidGlassBottomBar extends StatelessWidget {
   final int currentIndex;
@@ -11,6 +12,21 @@ class LiquidGlassBottomBar extends StatelessWidget {
     required this.currentIndex,
     required this.onItemSelected,
   });
+
+  // Orden: 0 Mapa, 1 Mensajes, 2 Badges, 3 Perfil
+  static const List<String> _unselectedIcons = [
+    'assets/icons/map_icon.svg',
+    'assets/icons/messages.svg',
+    'assets/icons/badges.svg',
+    'assets/icons/profile.svg',
+  ];
+
+  static const List<String> _selectedIcons = [
+    'assets/icons/map_icon_selected.svg',
+    'assets/icons/messages_selected.svg',
+    'assets/icons/badges_selected.svg',
+    'assets/icons/profile_selected.svg',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -28,16 +44,14 @@ class LiquidGlassBottomBar extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(4, (index) {
+              final isSelected = index == currentIndex;
+              final iconPath =
+                  isSelected ? _selectedIcons[index] : _unselectedIcons[index];
               return IconButton(
                 onPressed: () => onItemSelected(index),
-                icon: Icon(
-                  [
-                    Icons.map_outlined,
-                    Icons.chat_bubble_outline,
-                    Icons.emoji_events_outlined,
-                    Icons.person_outline,
-                  ][index],
-                  color: index == currentIndex ? Colors.deepPurple : Colors.white,
+                icon: SvgPicture.asset(
+                  iconPath,
+                  height: 24,
                 ),
               );
             }),
