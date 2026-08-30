@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
+import 'map_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -22,6 +23,14 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Trail'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.map),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const MapScreen()),
+              );
+            },
+   ),
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () {
