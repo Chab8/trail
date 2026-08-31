@@ -48,6 +48,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomOffset = MediaQuery.viewPaddingOf(context).bottom + 92;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -60,12 +62,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             onMapCreated: _onMapCreated,
           ),
-          // Se muestra sobre la barra de navegación cuando hay una canción activa.
-          const Positioned(
+          Positioned(
             left: 16,
             right: 16,
-            bottom: 96,
-            child: NowPlayingBar(),
+            bottom: bottomOffset,
+            child: const NowPlayingBar(),
           ),
         ],
       ),

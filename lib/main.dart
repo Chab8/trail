@@ -29,7 +29,16 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Trail',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.deepPurple,
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: const Color(0xFF242424),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF242424),
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+        ),
         useMaterial3: true,
       ),
       home: const AuthGate(),

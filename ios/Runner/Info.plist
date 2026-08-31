@@ -30,6 +30,8 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Trail necesita acceso a tu ubicación para mostrar el mapa y, más adelante, registrar tus recorridos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Trail necesita acceso a tus fotos para que puedas elegir una imagen de perfil.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -1,7 +1,5 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'liquid_glass.dart';
 
 class LiquidGlassBottomBar extends StatelessWidget {
   final int currentIndex;
@@ -13,49 +11,52 @@ class LiquidGlassBottomBar extends StatelessWidget {
     required this.onItemSelected,
   });
 
-  // Orden: 0 Mapa, 1 Mensajes, 2 Badges, 3 Perfil
-  static const List<String> _unselectedIcons = [
-    'assets/icons/map_icon.svg',
-    'assets/icons/messages.svg',
-    'assets/icons/badges.svg',
-    'assets/icons/profile.svg',
-  ];
-
-  static const List<String> _selectedIcons = [
-    'assets/icons/map_icon_selected.svg',
-    'assets/icons/messages_selected.svg',
-    'assets/icons/badges_selected.svg',
-    'assets/icons/profile_selected.svg',
+  static const List<IconData> _icons = [
+    Icons.map_outlined,
+    Icons.chat_bubble_outline,
+    Icons.emoji_events_outlined,
+    Icons.person_outline,
   ];
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
+    return LiquidGlass(
       borderRadius: BorderRadius.circular(28),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: Container(
-          height: 68,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(4, (index) {
-              final isSelected = index == currentIndex;
-              final iconPath =
-                  isSelected ? _selectedIcons[index] : _unselectedIcons[index];
-              return IconButton(
-                onPressed: () => onItemSelected(index),
-                icon: SvgPicture.asset(
-                  iconPath,
-                  height: 24,
+      child: SizedBox(
+        height: 68,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: List.generate(_icons.length, (index) {
+            final isSelected = index == currentIndex;
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onItemSelected(index),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected
+                      ? Colors.deepPurple.withValues(alpha: 0.35)
+                      : Colors.transparent,
+                  border: Border.all(
+                    color: isSelected
+                        ? Colors.white.withValues(alpha: 0.45)
+                        : Colors.transparent,
+                  ),
                 ),
-              );
-            }),
-          ),
+                child: Icon(
+                  _icons[index],
+                  color: isSelected
+                      ? Colors.white
+                      : Colors.white.withValues(alpha: 0.65),
+                  size: 24,
+                ),
+              ),
+            );
+          }),
         ),
       ),
     );
