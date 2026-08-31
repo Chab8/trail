@@ -4,6 +4,15 @@ import '../models/user_profile.dart';
 class ProfileService {
   final SupabaseClient _client = Supabase.instance.client;
 
+  /// Chequea si un nombre de usuario ya está tomado, ANTES de crear la cuenta.
+  Future<bool> isUsernameTaken(String username) async {
+    final result = await _client.rpc(
+      'is_username_taken',
+      params: {'p_username': username},
+    );
+    return result as bool;
+  }
+
   Future<void> createProfile({
     required String userId,
     required String username,

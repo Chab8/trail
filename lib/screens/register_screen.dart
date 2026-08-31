@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../services/profile_service.dart';
 import 'main_navigation_screen.dart';
 
@@ -24,8 +25,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    if (username.isEmpty) {
-      setState(() => _errorMessage = 'Elegí un nombre de usuario.');
+    if (username.length < 3) {
+      setState(
+        () => _errorMessage =
+            'El nombre de usuario debe tener al menos 3 caracteres.',
+      );
+      return;
+    }
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = 'Completá el email y la contraseña.');
       return;
     }
 
@@ -35,6 +43,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
+      // Chequeamos ANTES de crear la cuenta si el username ya está tomado,
+      // para no dejar una cuenta de auth "huérfana" sin perfil.
+      final taken = await _profileService.isUsernameTaken(username);
+      if (taken) {
+        setState(
+          () => _errorMessage =
+              'Ese nombre de usuario ya está en uso. Probá con otro.',
+        );
+        return;
+      }
+
       final authResponse = await Supabase.instance.client.auth.signUp(
         email: email,
         password: password,
@@ -47,13 +66,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
 
       try {
-        await _profileService.createProfile(userId: user.id, username: username);
+        await _profileService.createProfile(
+          userId: user.id,
+          username: username,
+        );
       } on PostgrestException catch (e) {
         if (e.code == '23505') {
-          setState(() => _errorMessage =
-              'Ese nombre de usuario ya está en uso. Probá con otro (tu cuenta de email/contraseña ya quedó creada).');
+          setState(
+            () => _errorMessage = 'Ese nombre de usuario ya está en uso. Probá con otro (tu cuenta de email/contraseña ya quedó creada).',
+          );
         } else {
-          setState(() => _errorMessage = 'La cuenta se creó, pero falló el perfil: ${e.message}');
+          setState(
+            () => _errorMessage =
+                'La cuenta se creó, pero falló el perfil: ${e.message}',
+          );
         }
         return;
       }
@@ -93,7 +119,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
               children: [
                 TextField(
                   controller: _usernameController,
-                  decoration: const InputDecoration(labelText: 'Nombre de usuario'),
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre de usuario',
+                    helperText: 'Mínimo 3 caracteres. Tiene que ser único.',
+                  ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -111,7 +140,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 if (_errorMessage != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
-                    child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+                    child: Text(
+                      _errorMessage!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
                   ),
                 SizedBox(
                   width: double.infinity,

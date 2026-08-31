@@ -7,6 +7,8 @@ import 'screens/main_navigation_screen.dart';
 
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
+import 'services/spotify_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
@@ -15,6 +17,7 @@ void main() async {
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
   MapboxOptions.setAccessToken(dotenv.env['MAPBOX_ACCESS_TOKEN']!);
+  SpotifyService.instance.init();
   runApp(const MyApp());
 }
 
@@ -26,13 +29,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Trail',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
-          brightness: Brightness.dark,
-        ),
-        // Fondo general de la app (se usa en todas las pantallas,
-        // salvo el mapa, que lo pisa explícitamente).
-        scaffoldBackgroundColor: const Color(0xFF242424),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
       home: const AuthGate(),
