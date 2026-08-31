@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -10,30 +11,102 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   MapboxMap? mapboxMap;
+  LocationComponentSettings? locationComponentSettings;
+
+  @override
+  void initState() {
+    super.initState();
+    _requestLocationPermission();
+  }
+
+  Future<void> _requestLocationPermission() async {
+    final permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Permiso de ubicación denegado')),
+      );
+      return;
+    }
+  }
 
   Future<void> _onMapCreated(MapboxMap controller) async {
     mapboxMap = controller;
 
-    // Sacamos el indicador de escala y el botón de la brújula del mapa.
+    // Desactivar controles de UI
     await mapboxMap?.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
     await mapboxMap?.compass.updateSettings(CompassSettings(enabled: false));
+
+    // ACTIVAR EL LOCATION COMPONENT (punto azul nativo)
+    await _enableLocationComponent();
+
+    // Obtener ubicación inicial
+    final position = await Geolocator.getCurrentPosition();
+    
+    mapboxMap?.easeTo(
+      CameraOptions(
+        center: Point(
+          coordinates: Position(position.longitude, position.latitude),
+        ),
+        zoom: 15.0,
+      ),
+      MapAnimationOptions(duration: 1000),
+    );
+  }
+
+  Future<void> _enableLocationComponent() async {
+    try {
+      // Configurar el componente de ubicación
+      locationComponentSettings = LocationComponentSettings(
+        enabled: true,
+        pulseEnabled: true, // Efecto de pulso azul
+        showAccuracyRing: true, // Mostrar círculo de precisión
+      );
+
+      // Aplicar las configuraciones al mapa
+      await mapboxMap?.location.updateSettings(locationComponentSettings!);
+
+    } catch (e) {
+      print('Error al habilitar location component: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // El mapa queda excluido del fondo oscuro general de la app.
       backgroundColor: Colors.white,
       appBar: AppBar(title: const Text('Mapa')),
       body: MapWidget(
         key: const ValueKey('mapWidget'),
         styleUri: MapboxStyles.MAPBOX_STREETS,
-        cameraOptions: CameraOptions(
-          center: Point(coordinates: Position(-65.2226, -26.8241)),
-          zoom: 12.0,
-        ),
         onMapCreated: _onMapCreated,
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          // Botón para centrar en tu ubicación actual
+          final position = await Geolocator.getCurrentPosition();
+          mapboxMap?.easeTo(
+            CameraOptions(
+              center: Point(
+                coordinates: Position(position.longitude, position.latitude),
+              ),
+              zoom: 15.0,
+            ),
+            MapAnimationOptions(duration: 1000),
+          );
+        },
+        child: const Icon(Icons.my_location),
+      ),
     );
+  }
+
+  @override
+  void dispose() {
+    // Desactivar ubicación al salir
+    mapboxMap?.location.updateSettings(
+      LocationComponentSettings(enabled: false),
+    );
+    super.dispose();
   }
 }

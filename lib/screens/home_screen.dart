@@ -15,13 +15,19 @@ class _HomeScreenState extends State<HomeScreen> {
   MapboxMap? mapboxMap;
 
   Future<void> _onMapCreated(MapboxMap controller) async {
-    mapboxMap = controller;
+  mapboxMap = controller;
 
-    await mapboxMap?.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
-    await mapboxMap?.compass.updateSettings(CompassSettings(enabled: false));
+  // Activa el "puck" (punto azul) que muestra tu ubicación en el mapa
+  await mapboxMap?.location.updateSettings(
+    LocationComponentSettings(
+      enabled: true,
+      pulsingEnabled: true,
+      puckBearingEnabled: true,
+    ),
+  );
 
-    await _goToUserLocation();
-  }
+  await _goToUserLocation();
+}
 
   Future<void> _goToUserLocation() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
