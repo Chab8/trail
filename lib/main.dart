@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'screens/login_screen.dart';
-import 'screens/home_screen.dart';
+import 'screens/main_navigation_screen.dart';
+
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 void main() async {
@@ -44,6 +46,6 @@ class AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = Supabase.instance.client.auth.currentSession;
-    return session == null ? const LoginScreen() : const HomeScreen();
+    return session == null ? const LoginScreen() : const MainNavigationScreen();
   }
 }
