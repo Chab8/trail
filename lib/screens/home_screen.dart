@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart' hide Position;
 
-import '../widgets/now_playing_bar.dart';
-
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -54,8 +52,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomOffset = MediaQuery.viewPaddingOf(context).bottom + 92;
-
     return Scaffold(
       body: Stack(
         children: [
@@ -67,12 +63,6 @@ class _HomeScreenState extends State<HomeScreen> {
               zoom: 12.0,
             ),
             onMapCreated: _onMapCreated,
-          ),
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: bottomOffset,
-            child: const NowPlayingBar(),
           ),
         ],
       ),

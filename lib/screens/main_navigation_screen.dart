@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../widgets/liquid_glass_bottom_bar.dart';
+import '../widgets/now_playing_bar.dart';
 import 'home_screen.dart';
 import 'messages_screen.dart';
 import 'badges_screen.dart';
@@ -35,16 +37,22 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       // extendBody: true hace que el mapa/contenido se vea "detrás"
       // de la barra flotante, para el efecto liquid glass.
       extendBody: true,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: LiquidGlassBottomBar(
-            currentIndex: _currentIndex,
-            onItemSelected: _onItemSelected,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_currentIndex == 0) ...[
+                const NowPlayingBar(),
+                const SizedBox(height: 8),
+              ],
+              LiquidGlassBottomBar(
+                currentIndex: _currentIndex,
+                onItemSelected: _onItemSelected,
+              ),
+            ],
           ),
         ),
       ),
