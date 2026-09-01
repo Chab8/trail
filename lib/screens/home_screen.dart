@@ -15,6 +15,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _onMapCreated(MapboxMap controller) async {
   mapboxMap = controller;
 
+  // Oculta la barra de escala (esa reglita en una esquina) y la brújula.
+  await mapboxMap?.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
+  await mapboxMap?.compass.updateSettings(CompassSettings(enabled: false));
+
   // Activa el "puck" (punto azul) que muestra tu ubicación en el mapa
   await mapboxMap?.location.updateSettings(
     LocationComponentSettings(

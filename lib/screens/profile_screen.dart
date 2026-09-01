@@ -59,7 +59,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _pickAvatar() async {
+    Future<void> _pickAvatar() async {
     setState(() => _isPickingAvatar = true);
 
     try {
@@ -72,14 +72,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final bytes = await image.readAsBytes();
       if (mounted) setState(() => _selectedAvatarBytes = bytes);
+
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final extension = _extensionFromPath(image.path);
+      final filePath = '$userId/avatar.$extension';
+
+      // Sube la foto al bucket "avatars". upsert:true significa que si ya
+      // existe una foto anterior para este usuario, la reemplaza.
+      await Supabase.instance.client.storage.from('avatars').uploadBinary(
+            filePath,
+            bytes,
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: _contentTypeFromExtension(extension),
+            ),
+          );
+
+      // Arma el link público de la foto. Le agregamos un "?v=..." al final
+      // para que el teléfono no muestre una versión vieja guardada en caché.
+      final publicUrl = Supabase.instance.client.storage
+          .from('avatars')
+          .getPublicUrl(filePath);
+      final freshUrl =
+          '$publicUrl?v=${DateTime.now().millisecondsSinceEpoch}';
+
+      // Guarda el link en la tabla profiles, para que persista.
+      await _profileService.updateAvatarUrl(
+        userId: userId,
+        avatarUrl: freshUrl,
+      );
+
+      if (mounted) {
+        setState(() {
+          _avatarUrl = freshUrl;
+          _selectedAvatarBytes = null;
+        });
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo seleccionar la foto.')),
+          const SnackBar(content: Text('No se pudo guardar la foto de perfil.')),
         );
       }
     } finally {
       if (mounted) setState(() => _isPickingAvatar = false);
+    }
+  }
+
+  String _extensionFromPath(String path) {
+    final dotIndex = path.lastIndexOf('.');
+    if (dotIndex == -1 || dotIndex == path.length - 1) return 'jpg';
+    return path.substring(dotIndex + 1).toLowerCase();
+  }
+
+  String _contentTypeFromExtension(String extension) {
+    switch (extension) {
+      case 'png':
+        return 'image/png';
+      case 'heic':
+        return 'image/heic';
+      case 'webp':
+        return 'image/webp';
+      case 'jpg':
+      case 'jpeg':
+      default:
+        return 'image/jpeg';
     }
   }
 
