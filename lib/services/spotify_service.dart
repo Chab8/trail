@@ -238,14 +238,15 @@ class SpotifyService {
     return newAccessToken;
   }
 
-  /// Qué se está escuchando ahora mismo. Null si no hay Spotify conectado
-  /// o si no se está reproduciendo nada.
+  /// Estado de reproducción actual. Null si no hay Spotify conectado
+  /// o Spotify no tiene una pista para mostrar.
   Future<SpotifyNowPlaying?> getCurrentlyPlaying() async {
     final token = await _getValidAccessToken();
     if (token == null) return null;
 
     final response = await http.get(
-      Uri.parse('https://api.spotify.com/v1/me/player/currently-playing'),
+      // Este endpoint conserva el item actual también cuando está pausado.
+      Uri.parse('https://api.spotify.com/v1/me/player'),
       headers: {'Authorization': 'Bearer $token'},
     );
 
@@ -255,7 +256,7 @@ class SpotifyService {
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     final isPlaying = data['is_playing'] as bool? ?? false;
     final item = data['item'] as Map<String, dynamic>?;
-    if (!isPlaying || item == null) return null;
+    if (item == null) return null;
 
     final artists = (item['artists'] as List<dynamic>? ?? [])
         .map((a) => a['name'] as String)
@@ -267,6 +268,7 @@ class SpotifyService {
       trackName: item['name'] as String? ?? '',
       artistName: artists,
       albumArtUrl: albumArt,
+      isPlaying: isPlaying,
     );
   }
 
@@ -287,10 +289,12 @@ class SpotifyNowPlaying {
   final String trackName;
   final String artistName;
   final String? albumArtUrl;
+  final bool isPlaying;
 
   SpotifyNowPlaying({
     required this.trackName,
     required this.artistName,
     this.albumArtUrl,
+    required this.isPlaying,
   });
 }

@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+
 import '../services/spotify_service.dart';
 import 'liquid_glass.dart';
 
-/// Se muestra solamente si hay una cuenta de Spotify conectada
-/// y hay algo sonando en este momento. Si no, no ocupa espacio.
+/// Se muestra si hay una cuenta de Spotify conectada y una pista actual.
+/// La pista sigue visible cuando Spotify queda en pausa.
 class NowPlayingBar extends StatefulWidget {
   const NowPlayingBar({super.key});
 
@@ -101,9 +104,90 @@ class _NowPlayingBarState extends State<NowPlayingBar> {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          const Icon(Icons.graphic_eq, color: Color(0xFF1ED760), size: 20),
+          const SizedBox(width: 12),
+          MiniSoundwave(isPlaying: track.isPlaying),
         ],
+      ),
+    );
+  }
+}
+
+class MiniSoundwave extends StatefulWidget {
+  const MiniSoundwave({super.key, required this.isPlaying});
+
+  final bool isPlaying;
+
+  @override
+  State<MiniSoundwave> createState() => _MiniSoundwaveState();
+}
+
+class _MiniSoundwaveState extends State<MiniSoundwave>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  static const _barHeights = <double>[10, 18, 14, 20, 12, 16];
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    );
+    if (widget.isPlaying) _controller.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant MiniSoundwave oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPlaying && !oldWidget.isPlaying) {
+      _controller.repeat();
+    } else if (!widget.isPlaying && oldWidget.isPlaying) {
+      _controller.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 30,
+      height: 22,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: List.generate(_barHeights.length, (index) {
+              final wave =
+                  (1 +
+                      math.sin(
+                        (_controller.value * math.pi * 2) + index * 1.7,
+                      )) /
+                  2;
+              final height = widget.isPlaying
+                  ? 7 + ((_barHeights[index] - 7) * wave)
+                  : 3.5;
+
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                width: 3.5,
+                height: height,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF1ED760),
+                  borderRadius: BorderRadius.all(Radius.circular(999)),
+                ),
+              );
+            }),
+          );
+        },
       ),
     );
   }
