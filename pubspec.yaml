@@ -39,6 +39,7 @@ dependencies:
   mapbox_maps_flutter: ^2.29.1
   geolocator: ^14.0.2
   flutter_svg: ^2.0.10+1
+  google_fonts: ^6.3.3
   app_links: ^7.2.1
   http: ^1.6.0
   crypto: ^3.0.7
