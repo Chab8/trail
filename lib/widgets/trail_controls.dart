@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../services/trail_service.dart';
-import 'liquid_glass.dart';
 import 'now_playing_bar.dart';
 
 // Altura compartida entre la barra de canción y los botones, para que
 // queden perfectamente alineados (misma altura en pixeles).
 const double _trailRowHeight = 60;
-const double _trailButtonSize = 60;
+const double _trailButtonSize = 58;
 const double _trailGap = 10;
 
 /// Fila que combina la barra de "reproduciendo ahora" (Spotify) con los
@@ -24,22 +23,40 @@ class TrailControlsRow extends StatefulWidget {
   State<TrailControlsRow> createState() => _TrailControlsRowState();
 }
 
-class _TrailControlsRowState extends State<TrailControlsRow> {
+class _TrailControlsRowState extends State<TrailControlsRow>
+    with SingleTickerProviderStateMixin {
   final TrailService _trailService = TrailService.instance;
+  late final AnimationController _controlsController;
+  late final Animation<double> _controlsAnimation;
 
   @override
   void initState() {
     super.initState();
+    _controlsController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+      value: _trailService.isPaused ? 1 : 0,
+    );
+    _controlsAnimation = CurvedAnimation(
+      parent: _controlsController,
+      curve: Curves.easeOut,
+    );
     _trailService.addListener(_onTrailChanged);
   }
 
   @override
   void dispose() {
     _trailService.removeListener(_onTrailChanged);
+    _controlsController.dispose();
     super.dispose();
   }
 
   void _onTrailChanged() {
+    if (_trailService.isPaused) {
+      _controlsController.forward();
+    } else {
+      _controlsController.reverse();
+    }
     if (mounted) setState(() {});
   }
 
@@ -48,48 +65,71 @@ class _TrailControlsRowState extends State<TrailControlsRow> {
     final isPaused = _trailService.isPaused;
     final isActive = _trailService.isActive;
 
-    // Pausado: hacemos lugar para 2 botones (stop + play).
-    // Si no: un solo botón (play o pause).
-    final visibleButtons = isPaused ? 2 : 1;
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final totalWidth = constraints.maxWidth;
-        final reservedForButtons =
-            visibleButtons * (_trailButtonSize + _trailGap);
-        final barWidth =
-            (totalWidth - reservedForButtons).clamp(0.0, totalWidth);
+        return AnimatedBuilder(
+          animation: _controlsAnimation,
+          builder: (context, child) {
+            // El bloque de controles crece hacia la izquierda al mostrar stop.
+            // Así el espacio entre él y la barra siempre es exactamente el mismo.
+            final controlsWidth =
+                _trailButtonSize +
+                ((_trailButtonSize + _trailGap) * _controlsAnimation.value);
+            final barWidth = (totalWidth - _trailGap - controlsWidth).clamp(
+              0.0,
+              totalWidth,
+            );
 
-        return SizedBox(
-          height: _trailRowHeight,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeOut,
-                width: barWidth,
-                height: _trailRowHeight,
-                child: const NowPlayingBar(),
+            return SizedBox(
+              height: _trailRowHeight,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: barWidth,
+                    height: _trailRowHeight,
+                    child: const NowPlayingBar(),
+                  ),
+                  const SizedBox(width: _trailGap),
+                  SizedBox(
+                    width: controlsWidth,
+                    height: _trailRowHeight,
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          left: 0,
+                          top: (_trailRowHeight - _trailButtonSize) / 2,
+                          child: IgnorePointer(
+                            ignoring: !isPaused,
+                            child: _TrailIconButton(
+                              assetPath: 'assets/icons/stop_trail.svg',
+                              tooltip: 'Finalizar trail',
+                              onTap: _trailService.stop,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          right: 0,
+                          top: (_trailRowHeight - _trailButtonSize) / 2,
+                          child: _TrailIconButton(
+                            assetPath: isActive
+                                ? 'assets/icons/pause_trail.svg'
+                                : 'assets/icons/play_trail.svg',
+                            tooltip: isActive
+                                ? 'Pausar trail'
+                                : 'Iniciar trail',
+                            onTap: isActive
+                                ? _trailService.pause
+                                : _trailService.play,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: _trailGap),
-              if (isPaused) ...[
-                _TrailIconButton(
-                  assetPath: 'assets/icons/stop_trail.svg',
-                  tooltip: 'Finalizar trail',
-                  onTap: _trailService.stop,
-                ),
-                const SizedBox(width: _trailGap),
-              ],
-              _TrailIconButton(
-                assetPath: isActive
-                    ? 'assets/icons/pause_trail.svg'
-                    : 'assets/icons/play_trail.svg',
-                tooltip: isActive ? 'Pausar trail' : 'Iniciar trail',
-                onTap: isActive ? _trailService.pause : _trailService.play,
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -114,20 +154,13 @@ class _TrailIconButton extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: LiquidGlass(
-          borderRadius: BorderRadius.circular(_trailButtonSize / 2),
-          blurSigma: 16,
-          tintOpacity: 0.14,
-          child: SizedBox(
+        child: SizedBox(
+          width: _trailButtonSize,
+          height: _trailButtonSize,
+          child: SvgPicture.asset(
+            assetPath,
             width: _trailButtonSize,
             height: _trailButtonSize,
-            child: Center(
-              child: SvgPicture.asset(
-                assetPath,
-                width: 22,
-                height: 22,
-              ),
-            ),
           ),
         ),
       ),
