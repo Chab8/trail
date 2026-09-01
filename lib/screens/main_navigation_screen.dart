@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../widgets/liquid_glass_bottom_bar.dart';
-import '../widgets/now_playing_bar.dart';
+import '../widgets/trail_controls.dart';
 import 'home_screen.dart';
 import 'messages_screen.dart';
 import 'badges_screen.dart';
@@ -45,7 +45,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (_currentIndex == 0) ...[
-                const NowPlayingBar(),
+                const TrailControlsRow(),
                 const SizedBox(height: 8),
               ],
               LiquidGlassBottomBar(
