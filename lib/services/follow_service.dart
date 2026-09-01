@@ -1,12 +1,16 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/follow_counts.dart';
+import '../models/follow_relationship.dart';
+import '../models/follow_request.dart';
 
 /// Este servicio se encarga de todo lo relacionado a "seguir" usuarios:
-/// seguir, dejar de seguir, y contar seguidores/seguidos.
+/// seguir directo, mandar/responder solicitudes (para perfiles privados),
+/// dejar de seguir, y contar seguidores/seguidos.
 ///
-/// Toda la información se guarda en la tabla `follows` de Supabase, donde
-/// cada fila significa "follower_id sigue a following_id".
+/// Los follows confirmados se guardan en la tabla `follows`. Las
+/// solicitudes pendientes (para perfiles privados) se guardan en
+/// `follow_requests`.
 class FollowService {
   final SupabaseClient _client = Supabase.instance.client;
 
@@ -25,8 +29,34 @@ class FollowService {
     return row != null;
   }
 
-  /// El usuario actual (el que está logueado) empieza a seguir a
-  /// [targetUserId].
+  /// Averigua la relación entre el usuario actual y [otherUserId]:
+  /// ¿ya lo sigue, le mandó una solicitud, o ninguna de las dos?
+  Future<FollowRelationship> getRelationship(String otherUserId) async {
+    final myId = _client.auth.currentUser?.id;
+    if (myId == null) return FollowRelationship.none;
+
+    final alreadyFollowing = await isFollowing(
+      followerId: myId,
+      followingId: otherUserId,
+    );
+    if (alreadyFollowing) return FollowRelationship.following;
+
+    final pendingRequest = await _client
+        .from('follow_requests')
+        .select()
+        .eq('requester_id', myId)
+        .eq('target_id', otherUserId)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+    return pendingRequest != null
+        ? FollowRelationship.requested
+        : FollowRelationship.none;
+  }
+
+  /// El usuario actual empieza a seguir a [targetUserId] directamente.
+  /// Solo funciona si el perfil de destino NO es privado (si lo es, la
+  /// base de datos va a rechazar la operación).
   Future<void> follow(String targetUserId) async {
     final myId = _client.auth.currentUser?.id;
     if (myId == null) return;
@@ -49,15 +79,67 @@ class FollowService {
         .eq('following_id', targetUserId);
   }
 
+  /// Le manda una solicitud de seguimiento a [targetUserId] (para usar
+  /// cuando ese perfil es privado).
+  Future<void> sendFollowRequest(String targetUserId) async {
+    final myId = _client.auth.currentUser?.id;
+    if (myId == null) return;
+
+    await _client.from('follow_requests').insert({
+      'requester_id': myId,
+      'target_id': targetUserId,
+    });
+  }
+
+  /// Cancela una solicitud de seguimiento que el usuario actual le mandó
+  /// a [targetUserId] (por ejemplo, si toca de nuevo el botón "Requested").
+  Future<void> cancelFollowRequest(String targetUserId) async {
+    final myId = _client.auth.currentUser?.id;
+    if (myId == null) return;
+
+    await _client
+        .from('follow_requests')
+        .delete()
+        .eq('requester_id', myId)
+        .eq('target_id', targetUserId)
+        .eq('status', 'pending');
+  }
+
+  /// Devuelve las solicitudes de seguimiento pendientes que OTRAS
+  /// personas le mandaron al usuario actual (para mostrarlas en la
+  /// pantalla de "Solicitudes de seguidor").
+  Future<List<FollowRequest>> getPendingRequestsForMe() async {
+    final myId = _client.auth.currentUser?.id;
+    if (myId == null) return [];
+
+    final data = await _client
+        .from('follow_requests')
+        .select(
+          'id, created_at, requester:profiles!follow_requests_requester_id_fkey(id, username, avatar_url)',
+        )
+        .eq('target_id', myId)
+        .eq('status', 'pending')
+        .order('created_at', ascending: false);
+
+    return data.map((row) => FollowRequest.fromMap(row)).toList();
+  }
+
+  /// Acepta o rechaza una solicitud de seguimiento. Si se acepta, del
+  /// lado del servidor se crea automáticamente el "follow" correspondiente.
+  Future<void> respondToFollowRequest({
+    required String requestId,
+    required bool approve,
+  }) async {
+    await _client.rpc(
+      'respond_to_follow_request',
+      params: {'request_id': requestId, 'approve': approve},
+    );
+  }
+
   /// Cuenta cuántos seguidores tiene [userId] y a cuántos sigue.
-  ///
-  /// Hacemos las dos consultas en paralelo (Future.wait) para que sea
-  /// más rápido que pedirlas una después de la otra.
   Future<FollowCounts> getFollowCounts(String userId) async {
     final results = await Future.wait([
-      // ¿Cuántas filas hay donde ESTE usuario es el "seguido"? = seguidores
       _client.from('follows').select().eq('following_id', userId).count(),
-      // ¿Cuántas filas hay donde ESTE usuario es el que "sigue"? = seguidos
       _client.from('follows').select().eq('follower_id', userId).count(),
     ]);
 

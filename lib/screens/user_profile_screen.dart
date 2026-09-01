@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/follow_relationship.dart';
 import '../models/user_profile.dart';
 import '../services/follow_service.dart';
 import '../services/profile_service.dart';
@@ -10,8 +11,8 @@ import '../widgets/profile_counter.dart';
 /// un resultado de búsqueda en la pantalla de Mensajes.
 ///
 /// A diferencia de "Mi perfil" (ProfileScreen), acá no se puede editar
-/// nada: solo se ve la info del usuario y hay un botón para seguirlo o
-/// dejar de seguirlo.
+/// nada: solo se ve la info del usuario y hay un botón para seguirlo,
+/// pedirle seguirlo (si es privado) o dejar de seguirlo.
 class UserProfileScreen extends StatefulWidget {
   final String userId;
 
@@ -32,7 +33,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   UserProfile? _profile;
   int _followersCount = 0;
   int _followingCount = 0;
-  bool _isFollowing = false;
+  FollowRelationship _relationship = FollowRelationship.none;
 
   bool get _isOwnProfile =>
       widget.userId == Supabase.instance.client.auth.currentUser?.id;
@@ -50,8 +51,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     });
 
     try {
-      // Pedimos todo uno después del otro. No es la forma más rápida
-      // posible, pero es la más fácil de leer y de mantener.
       final profile = await _profileService.getProfile(widget.userId);
 
       if (profile == null) {
@@ -61,20 +60,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
       final counts = await _followService.getFollowCounts(widget.userId);
 
-      final myId = Supabase.instance.client.auth.currentUser?.id;
-      final following = (myId == null || _isOwnProfile)
-          ? false
-          : await _followService.isFollowing(
-              followerId: myId,
-              followingId: widget.userId,
-            );
+      final relationship = _isOwnProfile
+          ? FollowRelationship.none
+          : await _followService.getRelationship(widget.userId);
 
       if (!mounted) return;
       setState(() {
         _profile = profile;
         _followersCount = counts.followersCount;
         _followingCount = counts.followingCount;
-        _isFollowing = following;
+        _relationship = relationship;
       });
     } catch (e) {
       if (mounted) {
@@ -85,37 +80,51 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
-  Future<void> _toggleFollow() async {
+  Future<void> _handleFollowButton() async {
+    final profile = _profile;
+    if (profile == null) return;
+
     setState(() => _isFollowBusy = true);
 
-    final wasFollowing = _isFollowing;
+    final previousRelationship = _relationship;
 
     try {
-      if (wasFollowing) {
-        await _followService.unfollow(widget.userId);
-      } else {
-        await _followService.follow(widget.userId);
-      }
+      switch (previousRelationship) {
+        case FollowRelationship.following:
+          await _followService.unfollow(widget.userId);
+          if (!mounted) return;
+          setState(() {
+            _relationship = FollowRelationship.none;
+            _followersCount = _followersCount > 0 ? _followersCount - 1 : 0;
+          });
+          break;
 
-      if (!mounted) return;
-      setState(() {
-        _isFollowing = !wasFollowing;
-        // Actualizamos el contador nosotros mismos en vez de volver a
-        // pedirle todo a Supabase, así el cambio se ve al instante.
-        _followersCount = wasFollowing
-            ? (_followersCount > 0 ? _followersCount - 1 : 0)
-            : _followersCount + 1;
-      });
+        case FollowRelationship.requested:
+          // Tocar "Requested" cancela la solicitud pendiente.
+          await _followService.cancelFollowRequest(widget.userId);
+          if (!mounted) return;
+          setState(() => _relationship = FollowRelationship.none);
+          break;
+
+        case FollowRelationship.none:
+          if (profile.isPrivate) {
+            await _followService.sendFollowRequest(widget.userId);
+            if (!mounted) return;
+            setState(() => _relationship = FollowRelationship.requested);
+          } else {
+            await _followService.follow(widget.userId);
+            if (!mounted) return;
+            setState(() {
+              _relationship = FollowRelationship.following;
+              _followersCount += 1;
+            });
+          }
+          break;
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              wasFollowing
-                  ? 'No se pudo dejar de seguir a este usuario.'
-                  : 'No se pudo seguir a este usuario.',
-            ),
-          ),
+          const SnackBar(content: Text('No se pudo completar la acción.')),
         );
       }
     } finally {
@@ -156,12 +165,30 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           Center(child: _AvatarImage(imageUrl: profile.avatarUrl)),
           const SizedBox(height: 16),
           Center(
-            child: Text(
-              '@${profile.username}',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Column(
+              children: [
+                Text(
+                  '@${profile.username}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (profile.isPrivate) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.lock_outline, size: 14, color: Colors.white54),
+                      SizedBox(width: 4),
+                      Text(
+                        'Cuenta privada',
+                        style: TextStyle(fontSize: 12, color: Colors.white54),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(height: 24),
@@ -178,18 +205,22 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             SizedBox(
               width: double.infinity,
               height: 44,
-              child: _isFollowing
-                  ? OutlinedButton(
-                      onPressed: _isFollowBusy ? null : _toggleFollow,
+              child: _relationship == FollowRelationship.none
+                  ? ElevatedButton(
+                      onPressed: _isFollowBusy ? null : _handleFollowButton,
                       child: _isFollowBusy
                           ? const _ButtonSpinner()
-                          : const Text('Following'),
+                          : Text(profile.isPrivate ? 'Request' : 'Follow'),
                     )
-                  : ElevatedButton(
-                      onPressed: _isFollowBusy ? null : _toggleFollow,
+                  : OutlinedButton(
+                      onPressed: _isFollowBusy ? null : _handleFollowButton,
                       child: _isFollowBusy
                           ? const _ButtonSpinner()
-                          : const Text('Follow'),
+                          : Text(
+                              _relationship == FollowRelationship.following
+                                  ? 'Following'
+                                  : 'Requested',
+                            ),
                     ),
             ),
           ],

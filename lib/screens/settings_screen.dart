@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_profile.dart';
 import '../services/profile_service.dart';
 import '../services/spotify_service.dart';
+import 'follow_requests_screen.dart';
 import 'login_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -22,6 +23,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _checkingSpotify = true;
   bool _spotifyConnected = false;
   bool _spotifyBusy = false;
+  bool _isPrivate = false;
+  bool _updatingPrivacy = false;
+  String? _userId;
   String? _errorMessage;
   String? _successMessage;
 
@@ -34,6 +38,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSettings() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
+    _userId = userId;
 
     try {
       final results = await Future.wait<Object?>([
@@ -43,6 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final profile = results[0] as UserProfile?;
       if (profile != null) {
         _usernameController.text = profile.username;
+        _isPrivate = profile.isPrivate;
       }
       if (mounted) {
         setState(() {
@@ -94,6 +100,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _togglePrivacy(bool value) async {
+    final userId = _userId;
+    if (userId == null) return;
+
+    // Cambiamos el interruptor al toque (para que se sienta instantáneo)
+    // y lo volvemos atrás si falla el guardado.
+    setState(() {
+      _isPrivate = value;
+      _updatingPrivacy = true;
+    });
+
+    try {
+      await _profileService.updatePrivacy(userId: userId, isPrivate: value);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isPrivate = !value);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo actualizar la privacidad.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _updatingPrivacy = false);
     }
   }
 
@@ -186,6 +217,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Text('Guardar nombre de usuario'),
+                  ),
+                  const SizedBox(height: 32),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Privacidad',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Perfil privado'),
+                    subtitle: Text(
+                      _isPrivate
+                          ? 'Los nuevos seguidores necesitan tu aprobación.'
+                          : 'Cualquiera puede seguirte directamente.',
+                    ),
+                    value: _isPrivate,
+                    onChanged: _updatingPrivacy ? null : _togglePrivacy,
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.person_add_alt_1_outlined),
+                    title: const Text('Solicitudes de seguidor'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const FollowRequestsScreen(),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 32),
                   const Divider(),

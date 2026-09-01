@@ -46,7 +46,12 @@ class ProfileService {
   }) async {
     await _client.from('profiles').update({'avatar_url': avatarUrl}).eq('id', userId);
   }
-
+  Future<void> updatePrivacy({
+    required String userId,
+    required bool isPrivate,
+  }) async {
+    await _client.from('profiles').update({'is_private': isPrivate}).eq('id', userId);
+  }
   /// Busca usuarios cuyo nombre de usuario contenga [query] (sin importar
   /// mayúsculas/minúsculas). Por ejemplo, buscar "ana" encuentra a "Ana99",
   /// "SantiAna", etc.
