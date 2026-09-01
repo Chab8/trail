@@ -46,4 +46,33 @@ class ProfileService {
   }) async {
     await _client.from('profiles').update({'avatar_url': avatarUrl}).eq('id', userId);
   }
+
+  /// Busca usuarios cuyo nombre de usuario contenga [query] (sin importar
+  /// mayúsculas/minúsculas). Por ejemplo, buscar "ana" encuentra a "Ana99",
+  /// "SantiAna", etc.
+  ///
+  /// Si se pasa [excludeUserId], ese usuario no aparece en los resultados
+  /// (lo usamos para no mostrarte a vos mismo en tu propia búsqueda).
+  Future<List<UserProfile>> searchUsersByUsername(
+    String query, {
+    String? excludeUserId,
+  }) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
+
+    final baseQuery = _client
+        .from('profiles')
+        .select()
+        .ilike('username', '%$trimmed%');
+
+    final filteredQuery = excludeUserId == null
+        ? baseQuery
+        : baseQuery.neq('id', excludeUserId);
+
+    final data = await filteredQuery
+        .order('username', ascending: true)
+        .limit(20);
+
+    return data.map((row) => UserProfile.fromMap(row)).toList();
+  }
 }

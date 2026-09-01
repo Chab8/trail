@@ -5,7 +5,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/follow_service.dart';
 import '../services/profile_service.dart';
+import '../widgets/profile_counter.dart';
 import 'settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -17,6 +19,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _profileService = ProfileService();
+  final _followService = FollowService();
   final _imagePicker = ImagePicker();
 
   bool _isLoading = true;
@@ -25,6 +28,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _username;
   String? _avatarUrl;
   Uint8List? _selectedAvatarBytes;
+  int _followersCount = 0;
+  int _followingCount = 0;
 
   @override
   void initState() {
@@ -42,6 +47,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _username = profile.username;
         _avatarUrl = profile.avatarUrl;
       }
+
+      // Contamos a cuántos seguidores y seguidos tenés en este momento.
+      final counts = await _followService.getFollowCounts(userId);
+      _followersCount = counts.followersCount;
+      _followingCount = counts.followingCount;
     } catch (e) {
       setState(() => _errorMessage = 'No se pudo cargar el perfil.');
     } finally {
@@ -145,13 +155,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                       const SizedBox(width: 20),
-                      const Expanded(
+                      Expanded(
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
-                            _ProfileCounter(label: 'Trails'),
-                            _ProfileCounter(label: 'Followers'),
-                            _ProfileCounter(label: 'Following'),
+                            // Todavía no contamos trails porque el
+                            // registro de recorridos no está armado.
+                            const ProfileCounter(label: 'Trails', value: 0),
+                            ProfileCounter(
+                              label: 'Followers',
+                              value: _followersCount,
+                            ),
+                            ProfileCounter(
+                              label: 'Following',
+                              value: _followingCount,
+                            ),
                           ],
                         ),
                       ),
@@ -178,27 +196,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
-    );
-  }
-}
-
-class _ProfileCounter extends StatelessWidget {
-  final String label;
-
-  const _ProfileCounter({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text(
-          '0',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 12)),
-      ],
     );
   }
 }
