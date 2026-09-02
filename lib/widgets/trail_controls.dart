@@ -13,9 +13,8 @@ const double _trailGap = 10;
 /// Fila que combina la barra de "reproduciendo ahora" (Spotify) con los
 /// controles del Trail: play, pause y stop.
 ///
-/// Por ahora esto SOLO maneja el estado visual (play/pause/stop) a través
-/// de [TrailService]. Todavía no arranca geolocalización ni guarda ningún
-/// recorrido: es la base para conectar esa lógica más adelante.
+/// [TrailService] se encarga de registrar la ubicación mientras el Trail está
+/// activo. Los recorridos siguen siendo temporales: no se guardan todavía.
 class TrailControlsRow extends StatefulWidget {
   const TrailControlsRow({super.key});
 
@@ -28,6 +27,7 @@ class _TrailControlsRowState extends State<TrailControlsRow>
   final TrailService _trailService = TrailService.instance;
   late final AnimationController _controlsController;
   late final Animation<double> _controlsAnimation;
+  String? _lastShownLocationError;
 
   @override
   void initState() {
@@ -57,6 +57,19 @@ class _TrailControlsRowState extends State<TrailControlsRow>
     } else {
       _controlsController.reverse();
     }
+
+    final locationError = _trailService.locationErrorMessage;
+    if (locationError == null) {
+      _lastShownLocationError = null;
+    } else if (locationError != _lastShownLocationError) {
+      _lastShownLocationError = locationError;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(locationError)));
+      });
+    }
+
     if (mounted) setState(() {});
   }
 
@@ -64,6 +77,7 @@ class _TrailControlsRowState extends State<TrailControlsRow>
   Widget build(BuildContext context) {
     final isPaused = _trailService.isPaused;
     final isActive = _trailService.isActive;
+    final isStarting = _trailService.isStarting;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -111,16 +125,21 @@ class _TrailControlsRowState extends State<TrailControlsRow>
                         Positioned(
                           right: 0,
                           top: (_trailRowHeight - _trailButtonSize) / 2,
-                          child: _TrailIconButton(
-                            assetPath: isActive
-                                ? 'assets/icons/pause_trail.svg'
-                                : 'assets/icons/play_trail.svg',
-                            tooltip: isActive
-                                ? 'Pausar trail'
-                                : 'Iniciar trail',
-                            onTap: isActive
-                                ? _trailService.pause
-                                : _trailService.play,
+                          child: IgnorePointer(
+                            ignoring: isStarting,
+                            child: _TrailIconButton(
+                              assetPath: isActive
+                                  ? 'assets/icons/pause_trail.svg'
+                                  : 'assets/icons/play_trail.svg',
+                              tooltip: isStarting
+                                  ? 'Obteniendo tu ubicación'
+                                  : isActive
+                                  ? 'Pausar trail'
+                                  : 'Iniciar trail',
+                              onTap: isActive
+                                  ? _trailService.pause
+                                  : _trailService.play,
+                            ),
                           ),
                         ),
                       ],

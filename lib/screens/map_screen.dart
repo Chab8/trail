@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:geolocator/geolocator.dart' hide Position;
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -43,7 +43,7 @@ class _MapScreenState extends State<MapScreen> {
 
     // Obtener ubicación inicial
     final position = await Geolocator.getCurrentPosition();
-    
+
     mapboxMap?.easeTo(
       CameraOptions(
         center: Point(
@@ -60,15 +60,14 @@ class _MapScreenState extends State<MapScreen> {
       // Configurar el componente de ubicación
       locationComponentSettings = LocationComponentSettings(
         enabled: true,
-        pulseEnabled: true, // Efecto de pulso azul
+        pulsingEnabled: true, // Efecto de pulso azul
         showAccuracyRing: true, // Mostrar círculo de precisión
       );
 
       // Aplicar las configuraciones al mapa
       await mapboxMap?.location.updateSettings(locationComponentSettings!);
-
-    } catch (e) {
-      print('Error al habilitar location component: $e');
+    } catch (error) {
+      debugPrint('Error al habilitar location component: $error');
     }
   }
 
