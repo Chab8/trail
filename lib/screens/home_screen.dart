@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart' hide Position;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
+import '../services/dominant_color_service.dart';
+import '../services/spotify_service.dart';
 import '../services/trail_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -14,8 +16,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const _trailColor = 0xFF1ED760;
-  static const _trailOutlineColor = 0xFF133D22;
+  // Color que se conserva cuando no hay una canción reproduciéndose.
+  static const _fallbackTrailColor = 0xFF1ED760;
+  static const _trailLineWidth = 28.0;
 
   final TrailService _trailService = TrailService.instance;
   MapboxMap? _mapboxMap;
@@ -27,8 +30,13 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isRenderingTrail = false;
   bool _needsTrailRender = false;
   int _renderedTrailRevision = -1;
+  int _renderedTrailColor = -1;
+  double _renderedTrailLineWidth = -1;
   int _renderedStartMarkerCount = 0;
   int _lastCenteredSegmentCount = 0;
+  int _trailColor = _fallbackTrailColor;
+  int _colorTrailRevision = -1;
+  bool _needsStartMarkerRefresh = false;
 
   @override
   void initState() {
@@ -100,7 +108,41 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onTrailChanged() {
     if (_trailService.isIdle) _lastCenteredSegmentCount = 0;
+
+    final revision = _trailService.trailRevision;
+    if (_trailService.segments.isNotEmpty && revision != _colorTrailRevision) {
+      _colorTrailRevision = revision;
+      _trailColor = _fallbackTrailColor;
+      _needsStartMarkerRefresh = true;
+      unawaited(_loadTrailColor(revision));
+    }
+
     _scheduleTrailRender();
+  }
+
+  /// El color se define al iniciar cada trail para que todo su recorrido
+  /// represente la canción que se estaba reproduciendo en ese momento.
+  Future<void> _loadTrailColor(int trailRevision) async {
+    try {
+      final track = await SpotifyService.instance.getCurrentlyPlaying();
+      if (track == null || !track.isPlaying) return;
+
+      final color = await DominantColorService.getColor(track.albumArtUrl);
+      if (color == null ||
+          _isDisposed ||
+          trailRevision != _trailService.trailRevision) {
+        return;
+      }
+
+      final colorValue = color.toARGB32();
+      if (_trailColor == colorValue) return;
+
+      _trailColor = colorValue;
+      _needsStartMarkerRefresh = true;
+      _scheduleTrailRender();
+    } catch (_) {
+      // Sin una canción o sin conexión usamos el color de respaldo.
+    }
   }
 
   void _scheduleTrailRender() {
@@ -146,15 +188,24 @@ class _HomeScreenState extends State<HomeScreen> {
         await startManager.deleteAll();
       }
       _renderedTrailRevision = revision;
+      _renderedTrailColor = -1;
+      _renderedTrailLineWidth = -1;
       _renderedStartMarkerCount = 0;
       _segmentLines.clear();
       _renderedPointCounts.clear();
+      _needsStartMarkerRefresh = false;
     }
 
     if (_isDisposed ||
         lineManager != _trailLineManager ||
         startManager != _trailStartManager) {
       return;
+    }
+
+    if (_needsStartMarkerRefresh) {
+      await startManager.deleteAll();
+      _renderedStartMarkerCount = 0;
+      _needsStartMarkerRefresh = false;
     }
 
     // Cada segmento comienza con un punto visible; al retomar habrá un punto
@@ -167,9 +218,7 @@ class _HomeScreenState extends State<HomeScreen> {
             CircleAnnotationOptions(
               geometry: _mapboxPoint(segment.first),
               circleColor: _trailColor,
-              circleRadius: 6,
-              circleStrokeColor: _trailOutlineColor,
-              circleStrokeWidth: 2,
+              circleRadius: 8,
             ),
           );
         } catch (error) {
@@ -198,18 +247,33 @@ class _HomeScreenState extends State<HomeScreen> {
           PolylineAnnotationOptions(
             geometry: geometry,
             lineColor: _trailColor,
-            lineBorderColor: _trailOutlineColor,
-            lineBorderWidth: 1.5,
+            // Evita que la iluminación del estilo de Mapbox oscurezca el
+            // color extraído de la portada.
+            lineEmissiveStrength: 1,
             lineJoin: LineJoin.ROUND,
-            lineWidth: 6,
+            lineWidth: _trailLineWidth,
           ),
         );
-      } else if (_renderedPointCounts[index] != segment.length) {
-        line.geometry = geometry;
-        await lineManager.update(line);
+      } else {
+        final geometryChanged = _renderedPointCounts[index] != segment.length;
+        final styleChanged =
+            _renderedTrailColor != _trailColor ||
+            _renderedTrailLineWidth != _trailLineWidth;
+        if (geometryChanged || styleChanged) {
+          if (geometryChanged) line.geometry = geometry;
+          if (styleChanged) {
+            line.lineColor = _trailColor;
+            line.lineEmissiveStrength = 1;
+            line.lineWidth = _trailLineWidth;
+          }
+          await lineManager.update(line);
+        }
       }
       _renderedPointCounts[index] = segment.length;
     }
+
+    _renderedTrailColor = _trailColor;
+    _renderedTrailLineWidth = _trailLineWidth;
 
     await _centerOnNewSegment(segments);
   }
