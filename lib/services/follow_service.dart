@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/follow_counts.dart';
 import '../models/follow_relationship.dart';
 import '../models/follow_request.dart';
+import '../models/user_profile.dart';
 
 /// Este servicio se encarga de todo lo relacionado a "seguir" usuarios:
 /// seguir directo, mandar/responder solicitudes (para perfiles privados),
@@ -147,5 +148,75 @@ class FollowService {
       followersCount: results[0].count,
       followingCount: results[1].count,
     );
+  }
+
+  /// Lista de usuarios que siguen a [userId] (sus seguidores), del más
+  /// reciente al más antiguo. Se usa en la pantalla "Seguidores/Siguiendo".
+  Future<List<UserProfile>> getFollowers(String userId) async {
+    final data = await _client
+        .from('follows')
+        .select(
+          'follower:profiles!follows_follower_id_fkey(id, username, avatar_url, is_private)',
+        )
+        .eq('following_id', userId)
+        .order('created_at', ascending: false);
+
+    return data
+        .map(
+          (row) =>
+              UserProfile.fromMap(row['follower'] as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  /// Lista de usuarios a los que sigue [userId], del más reciente al más
+  /// antiguo. Se usa en la pantalla "Seguidores/Siguiendo".
+  Future<List<UserProfile>> getFollowing(String userId) async {
+    final data = await _client
+        .from('follows')
+        .select(
+          'following:profiles!follows_following_id_fkey(id, username, avatar_url, is_private)',
+        )
+        .eq('follower_id', userId)
+        .order('created_at', ascending: false);
+
+    return data
+        .map(
+          (row) =>
+              UserProfile.fromMap(row['following'] as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  /// IDs de todos los usuarios a los que sigue el usuario LOGUEADO
+  /// actualmente. Sirve para, en una lista larga de personas (por
+  /// ejemplo los seguidores de otro usuario), saber de una sola consulta
+  /// a quiénes ya seguís, en vez de preguntarlo uno por uno.
+  Future<Set<String>> getMyFollowingIds() async {
+    final myId = _client.auth.currentUser?.id;
+    if (myId == null) return {};
+
+    final data = await _client
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', myId);
+
+    return data.map((row) => row['following_id'] as String).toSet();
+  }
+
+  /// IDs de los usuarios a los que el usuario LOGUEADO les mandó una
+  /// solicitud de seguimiento todavía pendiente (perfiles privados que
+  /// no te aprobaron todavía).
+  Future<Set<String>> getMyPendingRequestIds() async {
+    final myId = _client.auth.currentUser?.id;
+    if (myId == null) return {};
+
+    final data = await _client
+        .from('follow_requests')
+        .select('target_id')
+        .eq('requester_id', myId)
+        .eq('status', 'pending');
+
+    return data.map((row) => row['target_id'] as String).toSet();
   }
 }

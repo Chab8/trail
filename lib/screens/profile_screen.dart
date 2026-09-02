@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/follow_service.dart';
 import '../services/profile_service.dart';
 import '../widgets/profile_counter.dart';
+import 'follow_list_screen.dart';
 import 'settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -148,6 +149,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (mounted) _loadProfile();
   }
 
+  Future<void> _openFollowList(FollowListTab tab) async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null || _username == null) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FollowListScreen(
+          userId: userId,
+          username: _username!,
+          initialTab: tab,
+        ),
+      ),
+    );
+
+    // Si en esa pantalla seguiste o dejaste de seguir a alguien, los
+    // contadores de acá pueden haber cambiado: los volvemos a cargar.
+    if (mounted) _loadProfile();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -224,10 +244,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ProfileCounter(
                               label: 'Followers',
                               value: _followersCount,
+                              onTap: () =>
+                                  _openFollowList(FollowListTab.followers),
                             ),
                             ProfileCounter(
                               label: 'Following',
                               value: _followingCount,
+                              onTap: () =>
+                                  _openFollowList(FollowListTab.following),
                             ),
                           ],
                         ),

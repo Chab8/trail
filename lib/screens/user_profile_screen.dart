@@ -6,6 +6,7 @@ import '../models/user_profile.dart';
 import '../services/follow_service.dart';
 import '../services/profile_service.dart';
 import '../widgets/profile_counter.dart';
+import 'follow_list_screen.dart';
 
 /// Pantalla de perfil de OTRO usuario (no el tuyo). Se llega acá tocando
 /// un resultado de búsqueda en la pantalla de Mensajes.
@@ -132,6 +133,25 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
+  Future<void> _openFollowList(FollowListTab tab) async {
+    final profile = _profile;
+    if (profile == null) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FollowListScreen(
+          userId: widget.userId,
+          username: profile.username,
+          initialTab: tab,
+        ),
+      ),
+    );
+
+    // Si en esa pantalla vos (el que mira) seguiste o dejaste de seguir
+    // a alguien, la relación con este perfil puede haber cambiado.
+    if (mounted) _loadProfile();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -196,8 +216,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               const ProfileCounter(label: 'Trails', value: 0),
-              ProfileCounter(label: 'Followers', value: _followersCount),
-              ProfileCounter(label: 'Following', value: _followingCount),
+              ProfileCounter(
+                label: 'Followers',
+                value: _followersCount,
+                onTap: () => _openFollowList(FollowListTab.followers),
+              ),
+              ProfileCounter(
+                label: 'Following',
+                value: _followingCount,
+                onTap: () => _openFollowList(FollowListTab.following),
+              ),
             ],
           ),
           if (!_isOwnProfile) ...[
