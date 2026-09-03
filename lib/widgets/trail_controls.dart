@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../services/trail_library_service.dart';
 import '../services/trail_service.dart';
 import 'now_playing_bar.dart';
 
@@ -14,7 +15,7 @@ const double _trailGap = 10;
 /// controles del Trail: play, pause y stop.
 ///
 /// [TrailService] se encarga de registrar la ubicación mientras el Trail está
-/// activo. Los recorridos siguen siendo temporales: no se guardan todavía.
+/// activo. Al finalizarlo se guarda su resumen en el perfil.
 class TrailControlsRow extends StatefulWidget {
   const TrailControlsRow({super.key});
 
@@ -28,6 +29,7 @@ class _TrailControlsRowState extends State<TrailControlsRow>
   late final AnimationController _controlsController;
   late final Animation<double> _controlsAnimation;
   String? _lastShownLocationError;
+  bool _isFinishing = false;
 
   @override
   void initState() {
@@ -71,6 +73,45 @@ class _TrailControlsRowState extends State<TrailControlsRow>
     }
 
     if (mounted) setState(() {});
+  }
+
+  Future<void> _finishTrail() async {
+    if (_isFinishing || !_trailService.isPaused) return;
+
+    final library = TrailLibraryService.instance;
+    var trailName = library.nextDefaultName;
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Guardar trail'),
+        content: TextFormField(
+          initialValue: trailName,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(labelText: 'Nombre del trail'),
+          onChanged: (value) => trailName = value,
+          onFieldSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(trailName),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+
+    // Cancelar mantiene el trail pausado para que se pueda retomar.
+    if (name == null || !mounted) return;
+
+    setState(() => _isFinishing = true);
+    library.addTrail(name: name, songs: _trailService.songs);
+    await _trailService.stop();
+    if (mounted) setState(() => _isFinishing = false);
   }
 
   @override
@@ -118,7 +159,7 @@ class _TrailControlsRowState extends State<TrailControlsRow>
                             child: _TrailIconButton(
                               assetPath: 'assets/icons/stop_trail.svg',
                               tooltip: 'Finalizar trail',
-                              onTap: _trailService.stop,
+                              onTap: _finishTrail,
                             ),
                           ),
                         ),

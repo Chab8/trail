@@ -5,8 +5,11 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/completed_trail.dart';
+import '../models/trail_song.dart';
 import '../services/follow_service.dart';
 import '../services/profile_service.dart';
+import '../services/trail_library_service.dart';
 import '../widgets/profile_counter.dart';
 import 'follow_list_screen.dart';
 import 'settings_screen.dart';
@@ -22,6 +25,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _profileService = ProfileService();
   final _followService = FollowService();
   final _imagePicker = ImagePicker();
+  final _trailLibrary = TrailLibraryService.instance;
 
   bool _isLoading = true;
   bool _isPickingAvatar = false;
@@ -35,7 +39,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _trailLibrary.addListener(_onTrailsChanged);
     _loadProfile();
+  }
+
+  @override
+  void dispose() {
+    _trailLibrary.removeListener(_onTrailsChanged);
+    super.dispose();
+  }
+
+  void _onTrailsChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadProfile() async {
@@ -60,7 +75,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-    Future<void> _pickAvatar() async {
+  Future<void> _pickAvatar() async {
     setState(() => _isPickingAvatar = true);
 
     try {
@@ -82,7 +97,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       // Sube la foto al bucket "avatars". upsert:true significa que si ya
       // existe una foto anterior para este usuario, la reemplaza.
-      await Supabase.instance.client.storage.from('avatars').uploadBinary(
+      await Supabase.instance.client.storage
+          .from('avatars')
+          .uploadBinary(
             filePath,
             bytes,
             fileOptions: FileOptions(
@@ -96,8 +113,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final publicUrl = Supabase.instance.client.storage
           .from('avatars')
           .getPublicUrl(filePath);
-      final freshUrl =
-          '$publicUrl?v=${DateTime.now().millisecondsSinceEpoch}';
+      final freshUrl = '$publicUrl?v=${DateTime.now().millisecondsSinceEpoch}';
 
       // Guarda el link en la tabla profiles, para que persista.
       await _profileService.updateAvatarUrl(
@@ -114,7 +130,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo guardar la foto de perfil.')),
+          const SnackBar(
+            content: Text('No se pudo guardar la foto de perfil.'),
+          ),
         );
       }
     } finally {
@@ -238,9 +256,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
-                            // Todavía no contamos trails porque el
-                            // registro de recorridos no está armado.
-                            const ProfileCounter(label: 'Trails', value: 0),
+                            ProfileCounter(
+                              label: 'Trails',
+                              value: _trailLibrary.count,
+                            ),
                             ProfileCounter(
                               label: 'Followers',
                               value: _followersCount,
@@ -268,6 +287,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ],
+                  const SizedBox(height: 28),
+                  const Text(
+                    'Tus trails',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_trailLibrary.trails.isEmpty)
+                    Text(
+                      'Todavía no completaste ningún trail.',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.65),
+                      ),
+                    )
+                  else
+                    ..._trailLibrary.trails.map(_TrailSummaryCard.new),
                   if (_errorMessage != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),
@@ -279,6 +313,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
+    );
+  }
+}
+
+class _TrailSummaryCard extends StatelessWidget {
+  const _TrailSummaryCard(this.trail);
+
+  final CompletedTrail trail;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<TrailSong> songs = trail.songs;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              trail.name,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 10),
+            if (songs.isEmpty)
+              const Text('No se detectaron canciones durante este trail.')
+            else
+              ...songs.map<Widget>(
+                (song) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.music_note, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text('${song.title} — ${song.artist}')),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

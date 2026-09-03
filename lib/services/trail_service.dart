@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../models/trail_song.dart';
+import 'spotify_service.dart';
+
 /// Estados posibles de un Trail (recorrido musical).
 enum TrailStatus { idle, active, paused }
 
@@ -41,7 +44,9 @@ class TrailService extends ChangeNotifier {
 
   TrailStatus _status = TrailStatus.idle;
   StreamSubscription<Position>? _positionSubscription;
+  Timer? _songTimer;
   final List<List<TrailPoint>> _segments = [];
+  final List<TrailSong> _songs = [];
   String? _locationErrorMessage;
   bool _isStarting = false;
   int _startRequestId = 0;
@@ -54,6 +59,9 @@ class TrailService extends ChangeNotifier {
   bool get isPaused => _status == TrailStatus.paused;
   bool get isStarting => _isStarting;
   int get trailRevision => _trailRevision;
+
+  /// Canciones detectadas durante el trail que está en curso o recién terminó.
+  List<TrailSong> get songs => List<TrailSong>.unmodifiable(_songs);
 
   /// Último error de ubicación, pensado para que la UI informe al usuario.
   String? get locationErrorMessage => _locationErrorMessage;
@@ -91,12 +99,14 @@ class TrailService extends ChangeNotifier {
 
       if (startsNewTrail) {
         _segments.clear();
+        _songs.clear();
         _trailRevision++;
       }
       _segments.add([_trailPointFrom(position)]);
       _status = TrailStatus.active;
       _isStarting = false;
       _listenToPositionUpdates();
+      _startSongTracking();
       notifyListeners();
     } on _TrailLocationException catch (error) {
       if (requestId != _startRequestId) return;
@@ -125,6 +135,7 @@ class TrailService extends ChangeNotifier {
     _status = TrailStatus.paused;
     final subscription = _positionSubscription;
     _positionSubscription = null;
+    _stopSongTracking();
     notifyListeners();
     await subscription?.cancel();
   }
@@ -138,6 +149,7 @@ class TrailService extends ChangeNotifier {
     _status = TrailStatus.idle;
     final subscription = _positionSubscription;
     _positionSubscription = null;
+    _stopSongTracking();
     notifyListeners();
     await subscription?.cancel();
   }
@@ -177,6 +189,46 @@ class TrailService extends ChangeNotifier {
               },
             );
     _positionSubscription = subscription;
+  }
+
+  void _startSongTracking() {
+    _stopSongTracking();
+    _captureCurrentSong();
+    _songTimer = Timer.periodic(
+      const Duration(seconds: 4),
+      (_) => _captureCurrentSong(),
+    );
+  }
+
+  void _stopSongTracking() {
+    _songTimer?.cancel();
+    _songTimer = null;
+  }
+
+  Future<void> _captureCurrentSong() async {
+    if (!isActive) return;
+
+    // La falta momentánea de red o una sesión de Spotify vencida no debe
+    // interrumpir el registro de ubicación del trail.
+    SpotifyNowPlaying? track;
+    try {
+      track = await SpotifyService.instance.getCurrentlyPlaying();
+    } catch (_) {
+      return;
+    }
+    if (!isActive || track == null || !track.isPlaying) return;
+
+    // Si Spotify sigue en la misma canción, no la repetimos en la lista.
+    if (_songs.isNotEmpty && _songs.last.trackId == track.trackId) return;
+
+    _songs.add(
+      TrailSong(
+        trackId: track.trackId,
+        title: track.trackName,
+        artist: track.artistName,
+      ),
+    );
+    notifyListeners();
   }
 
   void _recordPosition(Position position) {
