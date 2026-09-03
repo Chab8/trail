@@ -265,10 +265,16 @@ class SpotifyService {
     final albumArt = images.isNotEmpty ? images.first['url'] as String? : null;
 
     return SpotifyNowPlaying(
+      trackId: item['id'] as String? ?? '',
       trackName: item['name'] as String? ?? '',
       artistName: artists,
       albumArtUrl: albumArt,
       isPlaying: isPlaying,
+      // NUEVO: en qué segundo va la canción y cuánto dura en total.
+      // Esto nos sirve para calcular cuándo debería terminar y
+      // preguntarle a Spotify justo en ese momento.
+      progressMs: data['progress_ms'] as int? ?? 0,
+      durationMs: item['duration_ms'] as int? ?? 0,
     );
   }
 
@@ -286,15 +292,21 @@ class SpotifyService {
 }
 
 class SpotifyNowPlaying {
+  final String trackId;
   final String trackName;
   final String artistName;
   final String? albumArtUrl;
   final bool isPlaying;
+  final int progressMs;
+  final int durationMs;
 
   SpotifyNowPlaying({
+    required this.trackId,
     required this.trackName,
     required this.artistName,
     this.albumArtUrl,
     required this.isPlaying,
+    required this.progressMs,
+    required this.durationMs,
   });
 }
