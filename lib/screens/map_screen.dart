@@ -32,27 +32,54 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _onMapCreated(MapboxMap controller) async {
-    mapboxMap = controller;
+  mapboxMap = controller;
 
-    // Desactivar controles de UI
-    await mapboxMap?.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
-    await mapboxMap?.compass.updateSettings(CompassSettings(enabled: false));
+  // LOGO DE MAPBOX
+  await mapboxMap?.logo.updateSettings(
+    LogoSettings(
+      position: OrnamentPosition.BOTTOM_LEFT,
+      marginLeft: 4,
+      marginBottom: 2,
+    ),
+  );
 
-    // ACTIVAR EL LOCATION COMPONENT (punto azul nativo)
-    await _enableLocationComponent();
+  // BOTÓN DE ATRIBUCIÓN "i"
+  await mapboxMap?.attribution.updateSettings(
+    AttributionSettings(
+      position: OrnamentPosition.BOTTOM_LEFT,
+      marginLeft: 50,
+      marginBottom: 2,
+      clickable: true,
+    ),
+  );
 
-    // Obtener ubicación inicial
-    final position = await Geolocator.getCurrentPosition();
+  // Desactivar controles de UI
+  await mapboxMap?.scaleBar.updateSettings(
+    ScaleBarSettings(enabled: false),
+  );
 
-    mapboxMap?.easeTo(
-      CameraOptions(
-        center: Point(
-          coordinates: Position(position.longitude, position.latitude),
+  await mapboxMap?.compass.updateSettings(
+    CompassSettings(enabled: false),
+  );
+
+  // ACTIVAR EL LOCATION COMPONENT (punto azul nativo)
+  await _enableLocationComponent();
+
+  // Obtener ubicación inicial
+  final position = await Geolocator.getCurrentPosition();
+
+  mapboxMap?.easeTo(
+    CameraOptions(
+      center: Point(
+        coordinates: Position(
+          position.longitude,
+          position.latitude,
         ),
-        zoom: 15.0,
       ),
-      MapAnimationOptions(duration: 1000),
-    );
+      zoom: 15.0,
+    ),
+    MapAnimationOptions(duration: 1000),
+  );
   }
 
   Future<void> _enableLocationComponent() async {
