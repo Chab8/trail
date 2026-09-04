@@ -40,7 +40,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

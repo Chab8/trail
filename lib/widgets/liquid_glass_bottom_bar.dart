@@ -44,41 +44,52 @@ class LiquidGlassBottomBar extends StatelessWidget {
       highlightOpacity: 0.16,
       bottomShadeOpacity: 0.025,
       child: SizedBox(
-        height: 72,
-        child: Row(
-          children: List.generate(_icons.length, (index) {
-            final isSelected = index == currentIndex;
-            return Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => onItemSelected(index),
-                child: Center(
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOut,
-                    // El seleccionado es una píldora, no un círculo: sus
-                    // extremos son semicirculares y ocupa más espacio visual.
-                    width: isSelected ? 92 : 56,
-                    height: 58,
+        height: 64,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            const indicatorInset = 6.0;
+            final itemWidth = constraints.maxWidth / _icons.length;
+
+            return Stack(
+              children: [
+                // Una sola píldora se desliza por debajo de los íconos. Así
+                // no desaparece ni reaparece al cambiar de pantalla.
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 320),
+                  curve: Curves.easeOutCubic,
+                  left: (itemWidth * currentIndex) + indicatorInset,
+                  top: indicatorInset,
+                  width: itemWidth - (indicatorInset * 2),
+                  height: 64 - (indicatorInset * 2),
+                  child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: isSelected
-                          ? Colors.white.withValues(alpha: 0.22)
-                          : Colors.transparent,
+                      color: Colors.white.withValues(alpha: 0.22),
                       borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Center(
-                      child: SvgPicture.asset(
-                        isSelected
-                            ? _icons[index].selectedIcon
-                            : _icons[index].icon,
-                        fit: BoxFit.contain,
-                      ),
                     ),
                   ),
                 ),
-              ),
+                Row(
+                  children: List.generate(_icons.length, (index) {
+                    final isSelected = index == currentIndex;
+                    return Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onItemSelected(index),
+                        child: Center(
+                          child: SvgPicture.asset(
+                            isSelected
+                                ? _icons[index].selectedIcon
+                                : _icons[index].icon,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ],
             );
-          }),
+          },
         ),
       ),
     );
