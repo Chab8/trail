@@ -1,4 +1,5 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 /// Widget base para el efecto "liquid glass" (vidrio líquido) que vamos a
@@ -17,6 +18,10 @@ class LiquidGlass extends StatelessWidget {
   final Color tintColor;
   final double tintOpacity;
   final EdgeInsetsGeometry? padding;
+  final double borderOpacity;
+  final double shadowOpacity;
+  final double highlightOpacity;
+  final double bottomShadeOpacity;
 
   const LiquidGlass({
     super.key,
@@ -26,6 +31,10 @@ class LiquidGlass extends StatelessWidget {
     this.tintColor = Colors.white,
     this.tintOpacity = 0.16,
     this.padding,
+    this.borderOpacity = 0.32,
+    this.shadowOpacity = 0.28,
+    this.highlightOpacity = 0.85,
+    this.bottomShadeOpacity = 0.10,
   });
 
   @override
@@ -35,7 +44,7 @@ class LiquidGlass extends StatelessWidget {
         borderRadius: borderRadius,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.28),
+            color: Colors.black.withValues(alpha: shadowOpacity),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
@@ -52,13 +61,17 @@ class LiquidGlass extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  tintColor.withValues(alpha: (tintOpacity + 0.08).clamp(0.0, 1.0)),
+                  tintColor.withValues(
+                    alpha: (tintOpacity + 0.08).clamp(0.0, 1.0),
+                  ),
                   tintColor.withValues(alpha: tintOpacity.clamp(0.0, 1.0)),
-                  tintColor.withValues(alpha: (tintOpacity - 0.06).clamp(0.0, 1.0)),
+                  tintColor.withValues(
+                    alpha: (tintOpacity - 0.06).clamp(0.0, 1.0),
+                  ),
                 ],
               ),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.32),
+                color: Colors.white.withValues(alpha: borderOpacity),
                 width: 1,
               ),
             ),
@@ -66,23 +79,20 @@ class LiquidGlass extends StatelessWidget {
               children: [
                 // Brillo arriba: simula la luz reflejándose en el borde
                 // superior del vidrio.
-                const Positioned(
+                Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
-                  child: _TopHighlight(),
+                  child: _TopHighlight(opacity: highlightOpacity),
                 ),
                 // Sombra sutil abajo: le da profundidad al vidrio.
-                const Positioned(
+                Positioned(
                   bottom: 0,
                   left: 0,
                   right: 0,
-                  child: _BottomShade(),
+                  child: _BottomShade(opacity: bottomShadeOpacity),
                 ),
-                Padding(
-                  padding: padding ?? EdgeInsets.zero,
-                  child: child,
-                ),
+                Padding(padding: padding ?? EdgeInsets.zero, child: child),
               ],
             ),
           ),
@@ -93,7 +103,9 @@ class LiquidGlass extends StatelessWidget {
 }
 
 class _TopHighlight extends StatelessWidget {
-  const _TopHighlight();
+  const _TopHighlight({required this.opacity});
+
+  final double opacity;
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +115,7 @@ class _TopHighlight extends StatelessWidget {
         gradient: LinearGradient(
           colors: [
             Colors.white.withValues(alpha: 0.0),
-            Colors.white.withValues(alpha: 0.85),
+            Colors.white.withValues(alpha: opacity),
             Colors.white.withValues(alpha: 0.0),
           ],
         ),
@@ -113,7 +125,9 @@ class _TopHighlight extends StatelessWidget {
 }
 
 class _BottomShade extends StatelessWidget {
-  const _BottomShade();
+  const _BottomShade({required this.opacity});
+
+  final double opacity;
 
   @override
   Widget build(BuildContext context) {
@@ -125,7 +139,7 @@ class _BottomShade extends StatelessWidget {
           end: Alignment.bottomCenter,
           colors: [
             Colors.black.withValues(alpha: 0.0),
-            Colors.black.withValues(alpha: 0.10),
+            Colors.black.withValues(alpha: opacity),
           ],
         ),
       ),

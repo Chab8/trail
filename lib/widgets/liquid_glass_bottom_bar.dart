@@ -36,43 +36,43 @@ class LiquidGlassBottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return LiquidGlass(
       borderRadius: const BorderRadius.all(Radius.circular(36)),
-      blurSigma: 20,
-      tintOpacity: 0.10,
+      // La barra deja ver el mapa y apenas conserva el borde del vidrio.
+      blurSigma: 16,
+      tintOpacity: 0.055,
+      borderOpacity: 0.10,
+      shadowOpacity: 0.10,
+      highlightOpacity: 0.16,
+      bottomShadeOpacity: 0.025,
       child: SizedBox(
         height: 72,
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: List.generate(_icons.length, (index) {
             final isSelected = index == currentIndex;
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => onItemSelected(index),
-              child: AnimatedScale(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                scale: isSelected ? 1.08 : 1,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOut,
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isSelected
-                        ? Colors.white.withValues(alpha: 0.16)
-                        : Colors.transparent,
-                    border: Border.all(
+            return Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => onItemSelected(index),
+                child: Center(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    // El seleccionado es una píldora, no un círculo: sus
+                    // extremos son semicirculares y ocupa más espacio visual.
+                    width: isSelected ? 92 : 56,
+                    height: 58,
+                    decoration: BoxDecoration(
                       color: isSelected
-                          ? Colors.white.withValues(alpha: 0.24)
+                          ? Colors.white.withValues(alpha: 0.22)
                           : Colors.transparent,
+                      borderRadius: BorderRadius.circular(999),
                     ),
-                  ),
-                  child: Center(
-                    child: SvgPicture.asset(
-                      isSelected
-                          ? _icons[index].selectedIcon
-                          : _icons[index].icon,
-                      fit: BoxFit.contain,
+                    child: Center(
+                      child: SvgPicture.asset(
+                        isSelected
+                            ? _icons[index].selectedIcon
+                            : _icons[index].icon,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
                 ),
