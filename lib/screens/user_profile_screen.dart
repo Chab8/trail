@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/completed_trail.dart';
 import '../models/follow_relationship.dart';
 import '../models/user_profile.dart';
 import '../services/follow_service.dart';
 import '../services/profile_service.dart';
+import '../services/trail_library_service.dart';
 import '../widgets/profile_counter.dart';
 import 'follow_list_screen.dart';
+import 'profile_screen.dart' show TrailSummaryCard;
 
 /// Pantalla de perfil de OTRO usuario (no el tuyo). Se llega acá tocando
 /// un resultado de búsqueda en la pantalla de Mensajes.
@@ -26,6 +29,7 @@ class UserProfileScreen extends StatefulWidget {
 class _UserProfileScreenState extends State<UserProfileScreen> {
   final _profileService = ProfileService();
   final _followService = FollowService();
+  final _trailLibrary = TrailLibraryService.instance;
 
   bool _isLoading = true;
   bool _isFollowBusy = false;
@@ -34,6 +38,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   UserProfile? _profile;
   int _followersCount = 0;
   int _followingCount = 0;
+  List<CompletedTrail> _trails = [];
   FollowRelationship _relationship = FollowRelationship.none;
 
   bool get _isOwnProfile =>
@@ -60,6 +65,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       }
 
       final counts = await _followService.getFollowCounts(widget.userId);
+      List<CompletedTrail> trails = [];
+      try {
+        trails = await _trailLibrary.getTrailsForUser(widget.userId);
+      } catch (_) {
+        // El perfil sigue disponible aunque no se pueda cargar su historial.
+      }
 
       final relationship = _isOwnProfile
           ? FollowRelationship.none
@@ -70,6 +81,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         _profile = profile;
         _followersCount = counts.followersCount;
         _followingCount = counts.followingCount;
+        _trails = trails;
         _relationship = relationship;
       });
     } catch (e) {
@@ -215,7 +227,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              const ProfileCounter(label: 'Trails', value: 0),
+              ProfileCounter(label: 'Trails', value: _trails.length),
               ProfileCounter(
                 label: 'Followers',
                 value: _followersCount,
@@ -228,6 +240,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 32),
+          const Text(
+            'Trails',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          if (_trails.isEmpty)
+            const Text('Este usuario todavía no completó ningún trail.')
+          else
+            ..._trails.map(TrailSummaryCard.new),
           if (!_isOwnProfile) ...[
             const SizedBox(height: 32),
             SizedBox(

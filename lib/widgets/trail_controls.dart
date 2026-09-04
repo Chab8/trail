@@ -79,7 +79,19 @@ class _TrailControlsRowState extends State<TrailControlsRow>
     if (_isFinishing || !_trailService.isPaused) return;
 
     final library = TrailLibraryService.instance;
-    var trailName = library.nextDefaultName;
+    String trailName;
+    try {
+      trailName = await library.getNextDefaultName();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo preparar el guardado del trail.'),
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -109,9 +121,18 @@ class _TrailControlsRowState extends State<TrailControlsRow>
     if (name == null || !mounted) return;
 
     setState(() => _isFinishing = true);
-    library.addTrail(name: name, songs: _trailService.songs);
-    await _trailService.stop();
-    if (mounted) setState(() => _isFinishing = false);
+    try {
+      await library.addTrail(name: name, songs: _trailService.songs);
+      await _trailService.stop();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo guardar el trail.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isFinishing = false);
+    }
   }
 
   @override

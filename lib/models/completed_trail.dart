@@ -14,4 +14,16 @@ class CompletedTrail {
   final String name;
   final List<TrailSong> songs;
   final DateTime completedAt;
+
+  factory CompletedTrail.fromMap(Map<String, dynamic> map) {
+    final rawSongs = map['songs'] as List<dynamic>? ?? [];
+    return CompletedTrail(
+      name: map['name'] as String? ?? 'Trail',
+      songs: rawSongs
+          .whereType<Map<String, dynamic>>()
+          .map(TrailSong.fromMap)
+          .toList(growable: false),
+      completedAt: DateTime.parse(map['created_at'] as String),
+    );
+  }
 }

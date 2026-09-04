@@ -33,6 +33,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _username;
   String? _avatarUrl;
   Uint8List? _selectedAvatarBytes;
+  List<CompletedTrail> _trails = [];
   int _followersCount = 0;
   int _followingCount = 0;
 
@@ -50,7 +51,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _onTrailsChanged() {
-    if (mounted) setState(() {});
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) _loadTrails(userId);
   }
 
   Future<void> _loadProfile() async {
@@ -68,10 +70,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final counts = await _followService.getFollowCounts(userId);
       _followersCount = counts.followersCount;
       _followingCount = counts.followingCount;
+      try {
+        _trails = await _trailLibrary.getTrailsForUser(userId);
+      } catch (_) {
+        // Un problema al consultar el historial no debe impedir mostrar el
+        // resto del perfil.
+        _trails = [];
+      }
     } catch (e) {
       setState(() => _errorMessage = 'No se pudo cargar el perfil.');
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadTrails(String userId) async {
+    try {
+      final trails = await _trailLibrary.getTrailsForUser(userId);
+      if (!mounted || Supabase.instance.client.auth.currentUser?.id != userId) {
+        return;
+      }
+      setState(() => _trails = trails);
+    } catch (_) {
+      // El perfil puede seguir mostrándose si una recarga puntual falla.
     }
   }
 
@@ -258,7 +279,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           children: [
                             ProfileCounter(
                               label: 'Trails',
-                              value: _trailLibrary.count,
+                              value: _trails.length,
                             ),
                             ProfileCounter(
                               label: 'Followers',
@@ -293,7 +314,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 12),
-                  if (_trailLibrary.trails.isEmpty)
+                  if (_trails.isEmpty)
                     Text(
                       'Todavía no completaste ningún trail.',
                       style: TextStyle(
@@ -301,7 +322,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     )
                   else
-                    ..._trailLibrary.trails.map(_TrailSummaryCard.new),
+                    ..._trails.map(TrailSummaryCard.new),
                   if (_errorMessage != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),
@@ -317,8 +338,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-class _TrailSummaryCard extends StatelessWidget {
-  const _TrailSummaryCard(this.trail);
+class TrailSummaryCard extends StatelessWidget {
+  const TrailSummaryCard(this.trail, {super.key});
 
   final CompletedTrail trail;
 
