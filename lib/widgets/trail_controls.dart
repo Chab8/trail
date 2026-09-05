@@ -122,7 +122,11 @@ class _TrailControlsRowState extends State<TrailControlsRow>
 
     setState(() => _isFinishing = true);
     try {
-      await library.addTrail(name: name, songs: _trailService.songs);
+      await library.addTrail(
+        name: name,
+        songs: _trailService.songs,
+        segments: _trailService.segments,
+      );
       await _trailService.stop();
     } catch (_) {
       if (mounted) {

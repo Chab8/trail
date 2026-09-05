@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/completed_trail.dart';
 import '../models/trail_song.dart';
+import 'trail_service.dart';
 
 /// Biblioteca de trails finalizados, separada por el usuario que los grabó.
 ///
@@ -30,6 +31,7 @@ class TrailLibraryService extends ChangeNotifier {
   Future<void> addTrail({
     required String name,
     required List<TrailSong> songs,
+    required List<List<TrailPoint>> segments,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw StateError('No hay una sesión iniciada.');
@@ -44,6 +46,7 @@ class TrailLibraryService extends ChangeNotifier {
             : trimmedName,
         songs: List<TrailSong>.unmodifiable(songs),
         completedAt: DateTime.now(),
+        segments: segments,
       ),
     );
     notifyListeners();

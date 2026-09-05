@@ -11,6 +11,7 @@ import '../services/follow_service.dart';
 import '../services/profile_service.dart';
 import '../services/trail_library_service.dart';
 import '../widgets/profile_counter.dart';
+import '../widgets/trail_map_preview.dart';
 import 'follow_list_screen.dart';
 import 'settings_screen.dart';
 
@@ -358,6 +359,9 @@ class TrailSummaryCard extends StatelessWidget {
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
+            // Mini-mapa del trazado GPS
+            TrailMapPreview(segments: trail.segments),
+            const SizedBox(height: 12),
             if (songs.isEmpty)
               const Text('No se detectaron canciones durante este trail.')
             else
