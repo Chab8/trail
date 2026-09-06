@@ -51,6 +51,7 @@ class TrailService extends ChangeNotifier {
   bool _isStarting = false;
   int _startRequestId = 0;
   int _trailRevision = 0;
+  DateTime? _trailStartedAt;
 
   TrailStatus get status => _status;
 
@@ -59,6 +60,7 @@ class TrailService extends ChangeNotifier {
   bool get isPaused => _status == TrailStatus.paused;
   bool get isStarting => _isStarting;
   int get trailRevision => _trailRevision;
+  DateTime? get startedAt => _trailStartedAt;
 
   /// Canciones detectadas durante el trail que está en curso o recién terminó.
   List<TrailSong> get songs => List<TrailSong>.unmodifiable(_songs);
@@ -101,6 +103,7 @@ class TrailService extends ChangeNotifier {
         _segments.clear();
         _songs.clear();
         _trailRevision++;
+        _trailStartedAt = DateTime.now();
       }
       _segments.add([_trailPointFrom(position)]);
       _status = TrailStatus.active;
@@ -226,6 +229,7 @@ class TrailService extends ChangeNotifier {
         trackId: track.trackId,
         title: track.trackName,
         artist: track.artistName,
+        capturedAt: DateTime.now(),
       ),
     );
     notifyListeners();

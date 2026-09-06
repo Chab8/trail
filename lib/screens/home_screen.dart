@@ -59,6 +59,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
     await controller.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
     await controller.compass.updateSettings(CompassSettings(enabled: false));
+    await controller.logo.updateSettings(
+      LogoSettings(
+        position: OrnamentPosition.BOTTOM_LEFT,
+        marginLeft: 4,
+        marginBottom: 150,
+      ),
+    );
+    await controller.attribution.updateSettings(
+      AttributionSettings(
+        position: OrnamentPosition.BOTTOM_LEFT,
+        marginLeft: 50,
+        marginBottom: 150,
+        clickable: true,
+      ),
+    );
     await controller.location.updateSettings(
       LocationComponentSettings(
         enabled: true,
