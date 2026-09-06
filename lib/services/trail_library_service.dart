@@ -18,7 +18,7 @@ class TrailLibraryService extends ChangeNotifier {
     final data = await _client
         .from('trails')
         .select(
-          'id, title, started_at, ended_at, '
+          'id, title, started_at, ended_at, gps_segments, '
           'trail_segments(track_id, track_name, artist, started_at)',
         )
         .eq('user_id', userId)
@@ -41,13 +41,32 @@ class TrailLibraryService extends ChangeNotifier {
 
       final completedAtRaw = row['ended_at'] ?? row['started_at'];
 
+      // Reconstruimos el trazado GPS a partir de la columna gps_segments:
+      // una lista de segmentos, cada uno con puntos {lat, lon, ts}.
+      final rawGpsSegments = row['gps_segments'] as List<dynamic>? ?? [];
+      final gpsSegments = rawGpsSegments
+          .whereType<List<dynamic>>()
+          .map(
+            (segment) => segment
+                .whereType<Map<String, dynamic>>()
+                .map(
+                  (p) => TrailPoint(
+                    latitude: (p['lat'] as num).toDouble(),
+                    longitude: (p['lon'] as num).toDouble(),
+                    recordedAt: DateTime.fromMillisecondsSinceEpoch(
+                      p['ts'] as int? ?? 0,
+                    ),
+                  ),
+                )
+                .toList(),
+          )
+          .toList();
+
       return CompletedTrail(
         name: row['title'] as String? ?? 'Trail',
         songs: songs,
         completedAt: DateTime.parse(completedAtRaw as String),
-        // El trazado GPS (path) todavía no se guarda en Supabase, así que
-        // por ahora el mini-mapa de trails recargados aparece vacío.
-        segments: const [],
+        segments: gpsSegments,
       );
     }).toList();
   }
@@ -89,6 +108,22 @@ class TrailLibraryService extends ChangeNotifier {
       }
     }
 
+    // Convertimos los segmentos GPS a JSON simple para guardarlos en la
+    // columna gps_segments de la tabla trails.
+    final segmentsJson = segments
+        .map(
+          (segment) => segment
+              .map(
+                (p) => {
+                  'lat': p.latitude,
+                  'lon': p.longitude,
+                  'ts': p.recordedAt.millisecondsSinceEpoch,
+                },
+              )
+              .toList(),
+        )
+        .toList();
+
     final trailRow = await _client
         .from('trails')
         .insert({
@@ -97,6 +132,7 @@ class TrailLibraryService extends ChangeNotifier {
           'started_at': tripStart.toIso8601String(),
           'ended_at': now.toIso8601String(),
           'distance_m': totalMeters,
+          'gps_segments': segmentsJson,
         })
         .select('id')
         .single();
