@@ -339,47 +339,163 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-class TrailSummaryCard extends StatelessWidget {
+/// Una fila (barrita) por cada trail guardado.
+///
+/// Al tocarla se expande y muestra la lista de canciones detectadas
+/// durante ese trail. El cuadrado de la izquierda dibuja el trazado GPS
+/// real del recorrido (si todavía no hay trazado guardado, muestra un
+/// ícono de ruta como placeholder).
+class TrailSummaryCard extends StatefulWidget {
   const TrailSummaryCard(this.trail, {super.key});
 
   final CompletedTrail trail;
 
   @override
+  State<TrailSummaryCard> createState() => _TrailSummaryCardState();
+}
+
+class _TrailSummaryCardState extends State<TrailSummaryCard> {
+  bool _expanded = false;
+
+  static const _months = [
+    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+    'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+  ];
+
+  void _toggleExpanded() => setState(() => _expanded = !_expanded);
+
+  String _formatDate(DateTime date) {
+    final month = _months[date.month - 1];
+    final capitalized = month[0].toUpperCase() + month.substring(1);
+    return '$capitalized. ${date.day}';
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final List<TrailSong> songs = trail.songs;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              trail.name,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 10),
-            // Mini-mapa del trazado GPS
-            TrailMapPreview(segments: trail.segments),
-            const SizedBox(height: 12),
-            if (songs.isEmpty)
-              const Text('No se detectaron canciones durante este trail.')
-            else
-              ...songs.map<Widget>(
-                (song) => Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.music_note, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text('${song.title} — ${song.artist}')),
-                    ],
-                  ),
+    final trail = widget.trail;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(28),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _toggleExpanded,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Cuadrado con el trazado del recorrido.
+                    SizedBox(
+                      width: 74,
+                      height: 74,
+                      child: TrailMapPreview(
+                        segments: trail.segments,
+                        height: 74,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            trail.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatDate(trail.completedAt),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.white.withValues(alpha: 0.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      _expanded
+                          ? Icons.unfold_less_rounded
+                          : Icons.unfold_more_rounded,
+                      color: Colors.white38,
+                      size: 26,
+                    ),
+                  ],
                 ),
-              ),
-          ],
+                // Lista de canciones: aparece con una animación suave al
+                // tocar la barrita, y se oculta de nuevo al volver a tocarla.
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  alignment: Alignment.topCenter,
+                  child: _expanded
+                      ? Padding(
+                          padding: const EdgeInsets.only(top: 16, left: 4, right: 4),
+                          child: _SongsList(songs: trail.songs),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _SongsList extends StatelessWidget {
+  const _SongsList({required this.songs});
+
+  final List<TrailSong> songs;
+
+  @override
+  Widget build(BuildContext context) {
+    if (songs.isEmpty) {
+      return const Text(
+        'No se detectaron canciones durante este trail.',
+        style: TextStyle(color: Colors.white70),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: songs
+          .map<Widget>(
+            (song) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.music_note, size: 18, color: Colors.white70),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${song.title} — ${song.artist}',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+          .toList(),
     );
   }
 }

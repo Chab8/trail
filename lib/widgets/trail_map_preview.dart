@@ -28,6 +28,11 @@ class TrailMapPreview extends StatelessWidget {
   bool get _hasPoints =>
       segments.any((seg) => seg.length >= 2);
 
+  // Cuando el widget se usa chico (por ejemplo, en la lista de trails del
+  // perfil), no hay espacio para el texto del placeholder: mostramos
+  // solamente el ícono.
+  bool get _isCompact => height <= 100;
+
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
@@ -44,7 +49,7 @@ class TrailMapPreview extends StatelessWidget {
                   lineWidth: lineWidth,
                 ),
               )
-            : _Placeholder(color: lineColor),
+            : _Placeholder(color: lineColor, compact: _isCompact),
       ),
     );
   }
@@ -168,11 +173,23 @@ class _TrailPainter extends CustomPainter {
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _Placeholder extends StatelessWidget {
-  const _Placeholder({required this.color});
+  const _Placeholder({required this.color, this.compact = false});
+
   final Color color;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    if (compact) {
+      return Center(
+        child: Icon(
+          Icons.route_outlined,
+          size: 24,
+          color: color.withValues(alpha: 0.5),
+        ),
+      );
+    }
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
