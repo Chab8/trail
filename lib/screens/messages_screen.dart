@@ -1,16 +1,14 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/user_profile.dart';
-import '../services/profile_service.dart';
-import 'user_profile_screen.dart';
+import '../models/conversation.dart';
+import '../services/chat_service.dart';
+import 'chat_screen.dart';
+import 'user_search_screen.dart';
 
-/// Pantalla de "Mensajes". Por ahora funciona como buscador de personas:
-/// escribís un nombre de usuario arriba y aparece una lista de
-/// coincidencias. Tocando un resultado, se abre el perfil de esa persona,
-/// donde podés seguirla.
+/// Pantalla de "Mensajes": la lista de tus conversaciones, como en
+/// cualquier app de chat. Para empezar una conversación nueva, tocá el
+/// ícono de arriba a la derecha, que te lleva a buscar usuarios.
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
 
@@ -19,116 +17,76 @@ class MessagesScreen extends StatefulWidget {
 }
 
 class _MessagesScreenState extends State<MessagesScreen> {
-  final _profileService = ProfileService();
-  final _searchController = TextEditingController();
+  final _chatService = ChatService();
 
-  Timer? _debounce;
-  bool _isSearching = false;
+  bool _isLoading = true;
   String? _errorMessage;
-  List<UserProfile> _results = [];
+  List<Conversation> _conversations = [];
 
   @override
-  void dispose() {
-    _debounce?.cancel();
-    _searchController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _loadConversations();
   }
 
-  // "Debounce" quiere decir: esperar un poquito después de que la persona
-  // deja de tipear antes de buscar. Así, si escribís "ana" letra por
-  // letra, no hacemos 3 búsquedas (a, an, ana), sino una sola.
-  void _onQueryChanged(String query) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 350), () {
-      _search(query);
-    });
-    // Refrescamos la pantalla para mostrar/ocultar el botón de limpiar (X).
-    setState(() {});
-  }
-
-  Future<void> _search(String query) async {
-    final trimmed = query.trim();
-    if (trimmed.isEmpty) {
-      setState(() {
-        _results = [];
-        _isSearching = false;
-        _errorMessage = null;
-      });
-      return;
-    }
-
+  Future<void> _loadConversations() async {
     setState(() {
-      _isSearching = true;
+      _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      final myId = Supabase.instance.client.auth.currentUser?.id;
-      final results = await _profileService.searchUsersByUsername(
-        trimmed,
-        excludeUserId: myId,
-      );
+      final conversations = await _chatService.getConversations();
       if (!mounted) return;
-      setState(() => _results = results);
+      setState(() => _conversations = conversations);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _errorMessage = 'No se pudo buscar usuarios.');
+      setState(() => _errorMessage = 'No se pudieron cargar tus chats.');
     } finally {
-      if (mounted) setState(() => _isSearching = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _clearSearch() {
-    _searchController.clear();
-    _onQueryChanged('');
+  Future<void> _openNewChatSearch() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const UserSearchScreen()),
+    );
+    if (mounted) _loadConversations();
   }
 
-  void _openProfile(UserProfile profile) {
-    Navigator.of(context).push(
+  Future<void> _openChat(Conversation conversation) async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => UserProfileScreen(userId: profile.id),
+        builder: (_) => ChatScreen(
+          conversationId: conversation.id,
+          otherUserId: conversation.otherUserId,
+          otherUsername: conversation.otherUsername,
+          otherAvatarUrl: conversation.otherAvatarUrl,
+        ),
       ),
     );
+    if (mounted) _loadConversations();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: TextField(
-                controller: _searchController,
-                onChanged: _onQueryChanged,
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  hintText: 'Buscar por nombre de usuario',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchController.text.isEmpty
-                      ? null
-                      : IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: _clearSearch,
-                        ),
-                  filled: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-            ),
-            Expanded(child: _buildBody()),
-          ],
-        ),
+      appBar: AppBar(
+        title: const Text('Mensajes'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_square),
+            tooltip: 'Nuevo mensaje',
+            onPressed: _openNewChatSearch,
+          ),
+        ],
       ),
+      body: SafeArea(child: _buildBody()),
     );
   }
 
   Widget _buildBody() {
-    if (_isSearching) {
+    if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
@@ -138,44 +96,92 @@ class _MessagesScreenState extends State<MessagesScreen> {
       );
     }
 
-    if (_searchController.text.trim().isEmpty) {
-      return const Center(
+    if (_conversations.isEmpty) {
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24.0),
-          child: Text(
-            'Buscá a otros usuarios por su nombre de usuario para\n'
-            'seguirlos y ver sus trails.',
-            textAlign: TextAlign.center,
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Todavía no tenés conversaciones.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _openNewChatSearch,
+                child: const Text('Buscar a alguien'),
+              ),
+            ],
           ),
         ),
       );
     }
 
-    if (_results.isEmpty) {
-      return const Center(child: Text('No se encontraron usuarios.'));
-    }
-
     final bottomPadding = MediaQuery.viewPaddingOf(context).bottom + 116;
+    final myId = Supabase.instance.client.auth.currentUser?.id;
 
-    return ListView.builder(
-      padding: EdgeInsets.only(bottom: bottomPadding),
-      itemCount: _results.length,
-      itemBuilder: (context, index) {
-        final profile = _results[index];
-        final hasAvatar = profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty;
+    return RefreshIndicator(
+      onRefresh: _loadConversations,
+      child: ListView.builder(
+        padding: EdgeInsets.only(bottom: bottomPadding),
+        itemCount: _conversations.length,
+        itemBuilder: (context, index) {
+          final conversation = _conversations[index];
+          final hasAvatar = conversation.otherAvatarUrl != null &&
+              conversation.otherAvatarUrl!.isNotEmpty;
+          final isMine = conversation.lastMessageSenderId == myId;
+          final hasUnread = conversation.unreadCount > 0;
 
-        return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: const Color(0xFF3A3A3A),
-            backgroundImage: hasAvatar ? NetworkImage(profile.avatarUrl!) : null,
-            child: hasAvatar
-                ? null
-                : const Icon(Icons.person, color: Colors.white70),
-          ),
-          title: Text('@${profile.username}'),
-          onTap: () => _openProfile(profile),
-        );
-      },
+          return ListTile(
+            leading: CircleAvatar(
+              radius: 26,
+              backgroundColor: const Color(0xFF3A3A3A),
+              backgroundImage: hasAvatar
+                  ? NetworkImage(conversation.otherAvatarUrl!)
+                  : null,
+              child: hasAvatar
+                  ? null
+                  : const Icon(Icons.person, color: Colors.white70),
+            ),
+            title: Text(
+              '@${conversation.otherUsername}',
+              style: TextStyle(
+                fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+            subtitle: Text(
+              conversation.lastMessagePreview == null
+                  ? 'Empezá la conversación'
+                  : isMine
+                      ? 'Vos: ${conversation.lastMessagePreview}'
+                      : conversation.lastMessagePreview!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+            trailing: hasUnread
+                ? Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '${conversation.unreadCount}',
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  )
+                : null,
+            onTap: () => _openChat(conversation),
+          );
+        },
+      ),
     );
   }
 }

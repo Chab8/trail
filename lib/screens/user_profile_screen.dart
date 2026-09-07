@@ -1,22 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/completed_trail.dart';
-import '../models/follow_relationship.dart';
 import '../models/user_profile.dart';
+import '../services/chat_service.dart';
 import '../services/follow_service.dart';
 import '../services/profile_service.dart';
-import '../services/trail_library_service.dart';
 import '../widgets/profile_counter.dart';
-import 'follow_list_screen.dart';
-import 'profile_screen.dart' show TrailSummaryCard;
+import 'chat_screen.dart';
 
 /// Pantalla de perfil de OTRO usuario (no el tuyo). Se llega acá tocando
-/// un resultado de búsqueda en la pantalla de Mensajes.
+/// un resultado de búsqueda, o desde un chat.
 ///
 /// A diferencia de "Mi perfil" (ProfileScreen), acá no se puede editar
-/// nada: solo se ve la info del usuario y hay un botón para seguirlo,
-/// pedirle seguirlo (si es privado) o dejar de seguirlo.
+/// nada: solo se ve la info del usuario y hay un botón para seguirlo o
+/// dejar de seguirlo, y (si lo seguís) uno para mandarle un mensaje.
 class UserProfileScreen extends StatefulWidget {
   final String userId;
 
@@ -29,17 +26,17 @@ class UserProfileScreen extends StatefulWidget {
 class _UserProfileScreenState extends State<UserProfileScreen> {
   final _profileService = ProfileService();
   final _followService = FollowService();
-  final _trailLibrary = TrailLibraryService.instance;
+  final _chatService = ChatService();
 
   bool _isLoading = true;
   bool _isFollowBusy = false;
+  bool _isOpeningChat = false;
   String? _errorMessage;
 
   UserProfile? _profile;
   int _followersCount = 0;
   int _followingCount = 0;
-  List<CompletedTrail> _trails = [];
-  FollowRelationship _relationship = FollowRelationship.none;
+  bool _isFollowing = false;
 
   bool get _isOwnProfile =>
       widget.userId == Supabase.instance.client.auth.currentUser?.id;
@@ -65,24 +62,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       }
 
       final counts = await _followService.getFollowCounts(widget.userId);
-      List<CompletedTrail> trails = [];
-      try {
-        trails = await _trailLibrary.getTrailsForUser(widget.userId);
-      } catch (_) {
-        // El perfil sigue disponible aunque no se pueda cargar su historial.
-      }
 
-      final relationship = _isOwnProfile
-          ? FollowRelationship.none
-          : await _followService.getRelationship(widget.userId);
+      final myId = Supabase.instance.client.auth.currentUser?.id;
+      final following = (myId == null || _isOwnProfile)
+          ? false
+          : await _followService.isFollowing(
+              followerId: myId,
+              followingId: widget.userId,
+            );
 
       if (!mounted) return;
       setState(() {
         _profile = profile;
         _followersCount = counts.followersCount;
         _followingCount = counts.followingCount;
-        _trails = trails;
-        _relationship = relationship;
+        _isFollowing = following;
       });
     } catch (e) {
       if (mounted) {
@@ -93,51 +87,35 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
-  Future<void> _handleFollowButton() async {
-    final profile = _profile;
-    if (profile == null) return;
-
+  Future<void> _toggleFollow() async {
     setState(() => _isFollowBusy = true);
 
-    final previousRelationship = _relationship;
+    final wasFollowing = _isFollowing;
 
     try {
-      switch (previousRelationship) {
-        case FollowRelationship.following:
-          await _followService.unfollow(widget.userId);
-          if (!mounted) return;
-          setState(() {
-            _relationship = FollowRelationship.none;
-            _followersCount = _followersCount > 0 ? _followersCount - 1 : 0;
-          });
-          break;
-
-        case FollowRelationship.requested:
-          // Tocar "Requested" cancela la solicitud pendiente.
-          await _followService.cancelFollowRequest(widget.userId);
-          if (!mounted) return;
-          setState(() => _relationship = FollowRelationship.none);
-          break;
-
-        case FollowRelationship.none:
-          if (profile.isPrivate) {
-            await _followService.sendFollowRequest(widget.userId);
-            if (!mounted) return;
-            setState(() => _relationship = FollowRelationship.requested);
-          } else {
-            await _followService.follow(widget.userId);
-            if (!mounted) return;
-            setState(() {
-              _relationship = FollowRelationship.following;
-              _followersCount += 1;
-            });
-          }
-          break;
+      if (wasFollowing) {
+        await _followService.unfollow(widget.userId);
+      } else {
+        await _followService.follow(widget.userId);
       }
+
+      if (!mounted) return;
+      setState(() {
+        _isFollowing = !wasFollowing;
+        _followersCount = wasFollowing
+            ? (_followersCount > 0 ? _followersCount - 1 : 0)
+            : _followersCount + 1;
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo completar la acción.')),
+          SnackBar(
+            content: Text(
+              wasFollowing
+                  ? 'No se pudo dejar de seguir a este usuario.'
+                  : 'No se pudo seguir a este usuario.',
+            ),
+          ),
         );
       }
     } finally {
@@ -145,23 +123,44 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
-  Future<void> _openFollowList(FollowListTab tab) async {
-    final profile = _profile;
-    if (profile == null) return;
+  Future<void> _openChat() async {
+    if (_profile == null) return;
 
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => FollowListScreen(
-          userId: widget.userId,
-          username: profile.username,
-          initialTab: tab,
+    setState(() => _isOpeningChat = true);
+
+    String? conversationId;
+    try {
+      conversationId =
+          await _chatService.getOrCreateConversation(widget.userId);
+    } on PostgrestException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo abrir el chat.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isOpeningChat = false);
+    }
+
+    if (conversationId != null && mounted) {
+      final id = conversationId;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            conversationId: id,
+            otherUserId: widget.userId,
+            otherUsername: _profile!.username,
+            otherAvatarUrl: _profile!.avatarUrl,
+          ),
         ),
-      ),
-    );
-
-    // Si en esa pantalla vos (el que mira) seguiste o dejaste de seguir
-    // a alguien, la relación con este perfil puede haber cambiado.
-    if (mounted) _loadProfile();
+      );
+    }
   }
 
   @override
@@ -197,81 +196,68 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           Center(child: _AvatarImage(imageUrl: profile.avatarUrl)),
           const SizedBox(height: 16),
           Center(
-            child: Column(
-              children: [
-                Text(
-                  '@${profile.username}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                if (profile.isPrivate) ...[
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Icon(Icons.lock_outline, size: 14, color: Colors.white54),
-                      SizedBox(width: 4),
-                      Text(
-                        'Cuenta privada',
-                        style: TextStyle(fontSize: 12, color: Colors.white54),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
+            child: Text(
+              '@${profile.username}',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              ProfileCounter(label: 'Trails', value: _trails.length),
-              ProfileCounter(
-                label: 'Followers',
-                value: _followersCount,
-                onTap: () => _openFollowList(FollowListTab.followers),
-              ),
-              ProfileCounter(
-                label: 'Following',
-                value: _followingCount,
-                onTap: () => _openFollowList(FollowListTab.following),
-              ),
+              const ProfileCounter(label: 'Trails', value: 0),
+              ProfileCounter(label: 'Followers', value: _followersCount),
+              ProfileCounter(label: 'Following', value: _followingCount),
             ],
           ),
-          const SizedBox(height: 32),
-          const Text(
-            'Trails',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 12),
-          if (_trails.isEmpty)
-            const Text('Este usuario todavía no completó ningún trail.')
-          else
-            ..._trails.map(TrailSummaryCard.new),
           if (!_isOwnProfile) ...[
             const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: _relationship == FollowRelationship.none
-                  ? ElevatedButton(
-                      onPressed: _isFollowBusy ? null : _handleFollowButton,
-                      child: _isFollowBusy
-                          ? const _ButtonSpinner()
-                          : Text(profile.isPrivate ? 'Request' : 'Follow'),
-                    )
-                  : OutlinedButton(
-                      onPressed: _isFollowBusy ? null : _handleFollowButton,
-                      child: _isFollowBusy
-                          ? const _ButtonSpinner()
-                          : Text(
-                              _relationship == FollowRelationship.following
-                                  ? 'Following'
-                                  : 'Requested',
-                            ),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: _isFollowing
+                        ? OutlinedButton(
+                            onPressed: _isFollowBusy ? null : _toggleFollow,
+                            child: _isFollowBusy
+                                ? const _ButtonSpinner()
+                                : const Text('Following'),
+                          )
+                        : ElevatedButton(
+                            onPressed: _isFollowBusy ? null : _toggleFollow,
+                            child: _isFollowBusy
+                                ? const _ButtonSpinner()
+                                : const Text('Follow'),
+                          ),
+                  ),
+                ),
+                if (_isFollowing) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 44,
+                      child: OutlinedButton(
+                        onPressed: _isOpeningChat ? null : _openChat,
+                        child: _isOpeningChat
+                            ? const _ButtonSpinner()
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.chat_bubble_outline, size: 18),
+                                  SizedBox(width: 6),
+                                  Text('Mensaje'),
+                                ],
+                              ),
+                      ),
                     ),
+                  ),
+                ],
+              ],
             ),
           ],
         ],
