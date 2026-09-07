@@ -51,7 +51,9 @@ class TrailService extends ChangeNotifier {
   bool _isStarting = false;
   int _startRequestId = 0;
   int _trailRevision = 0;
-  DateTime? _trailStartedAt;
+  DateTime? _activeSince;
+  Duration _accumulatedDuration = Duration.zero;
+  double _accumulatedDistanceMeters = 0;
 
   TrailStatus get status => _status;
 
@@ -60,7 +62,14 @@ class TrailService extends ChangeNotifier {
   bool get isPaused => _status == TrailStatus.paused;
   bool get isStarting => _isStarting;
   int get trailRevision => _trailRevision;
-  DateTime? get startedAt => _trailStartedAt;
+
+  /// Tiempo total que el trail estuvo activo (sin contar las pausas).
+  Duration get elapsedDuration => _activeSince == null
+      ? _accumulatedDuration
+      : _accumulatedDuration + DateTime.now().difference(_activeSince!);
+
+  /// Distancia total recorrida durante el trail, en metros.
+  double get distanceMeters => _accumulatedDistanceMeters;
 
   /// Canciones detectadas durante el trail que está en curso o recién terminó.
   List<TrailSong> get songs => List<TrailSong>.unmodifiable(_songs);
@@ -103,11 +112,13 @@ class TrailService extends ChangeNotifier {
         _segments.clear();
         _songs.clear();
         _trailRevision++;
-        _trailStartedAt = DateTime.now();
+        _accumulatedDuration = Duration.zero;
+        _accumulatedDistanceMeters = 0;
       }
       _segments.add([_trailPointFrom(position)]);
       _status = TrailStatus.active;
       _isStarting = false;
+      _activeSince = DateTime.now();
       _listenToPositionUpdates();
       _startSongTracking();
       notifyListeners();
@@ -132,9 +143,11 @@ class TrailService extends ChangeNotifier {
   }
 
   /// Pausa el registro. Al retomar se iniciará otro segmento del recorrido.
+  /// Pausa el registro. Al retomar se iniciará otro segmento del recorrido.
   Future<void> pause() async {
     if (_status != TrailStatus.active) return;
 
+    _pauseStopwatch();
     _status = TrailStatus.paused;
     final subscription = _positionSubscription;
     _positionSubscription = null;
@@ -144,9 +157,11 @@ class TrailService extends ChangeNotifier {
   }
 
   /// Finaliza el registro, pero deja visible el recorrido hasta iniciar otro.
+  /// Finaliza el registro, pero deja visible el recorrido hasta iniciar otro.
   Future<void> stop() async {
     if (_status == TrailStatus.idle && !_isStarting) return;
 
+    _pauseStopwatch();
     ++_startRequestId;
     _isStarting = false;
     _status = TrailStatus.idle;
@@ -208,6 +223,15 @@ class TrailService extends ChangeNotifier {
     _songTimer = null;
   }
 
+  /// Suma el tiempo activo transcurrido desde el último play() al total
+  /// acumulado, y detiene el "cronómetro" hasta el próximo play().
+  void _pauseStopwatch() {
+    final activeSince = _activeSince;
+    if (activeSince == null) return;
+    _accumulatedDuration += DateTime.now().difference(activeSince);
+    _activeSince = null;
+  }
+
   Future<void> _captureCurrentSong() async {
     if (!isActive) return;
 
@@ -229,7 +253,7 @@ class TrailService extends ChangeNotifier {
         trackId: track.trackId,
         title: track.trackName,
         artist: track.artistName,
-        capturedAt: DateTime.now(),
+        startedAt: DateTime.now(),
       ),
     );
     notifyListeners();
@@ -250,8 +274,12 @@ class TrailService extends ChangeNotifier {
     // Conservamos movimientos de al menos un metro. El filtro nativo se deja
     // en cero porque algunos dispositivos emiten actualizaciones muy poco
     // frecuentes cuando se configura un filtro de distancia mayor.
+    // Conservamos movimientos de al menos un metro. El filtro nativo se deja
+    // en cero porque algunos dispositivos emiten actualizaciones muy poco
+    // frecuentes cuando se configura un filtro de distancia mayor.
     if (distance < 1) return;
 
+    _accumulatedDistanceMeters += distance;
     currentSegment.add(_trailPointFrom(position));
     notifyListeners();
   }
