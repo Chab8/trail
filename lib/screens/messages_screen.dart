@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -9,6 +11,9 @@ import 'user_search_screen.dart';
 /// Pantalla de "Mensajes": la lista de tus conversaciones, como en
 /// cualquier app de chat. Para empezar una conversación nueva, tocá el
 /// ícono de arriba a la derecha, que te lleva a buscar usuarios.
+///
+/// La lista se actualiza sola (sin pull-to-refresh) cada vez que llega
+/// un mensaje nuevo, gracias a una suscripción en vivo a Supabase.
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
 
@@ -23,17 +28,58 @@ class _MessagesScreenState extends State<MessagesScreen> {
   String? _errorMessage;
   List<Conversation> _conversations = [];
 
+  RealtimeChannel? _channel;
+  Timer? _refreshDebounce;
+
   @override
   void initState() {
     super.initState();
     _loadConversations();
+    _subscribeToLiveUpdates();
+  }
+
+  @override
+  void dispose() {
+    _refreshDebounce?.cancel();
+    final channel = _channel;
+    if (channel != null) {
+      Supabase.instance.client.removeChannel(channel);
+    }
+    super.dispose();
+  }
+
+  /// Se suscribe a cualquier cambio en la tabla de mensajes (nuevos
+  /// mensajes, ediciones, borrados, marcados como leídos). Supabase
+  /// solo nos avisa de los mensajes de conversaciones donde
+  /// participamos (por las políticas de seguridad), así que es seguro
+  /// escuchar todo.
+  void _subscribeToLiveUpdates() {
+    _channel = Supabase.instance.client
+        .channel('public:messages:inbox')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'messages',
+          callback: (payload) => _scheduleRefresh(),
+        )
+        .subscribe();
+  }
+
+  void _scheduleRefresh() {
+    _refreshDebounce?.cancel();
+    _refreshDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) _loadConversations();
+    });
   }
 
   Future<void> _loadConversations() async {
     setState(() {
-      _isLoading = true;
+      _isLoading = _conversations.isEmpty;
       _errorMessage = null;
     });
+
+    // No bloqueamos la carga por esto: solo actualiza tildes de "recibido".
+    unawaited(_chatService.markAllReceived());
 
     try {
       final conversations = await _chatService.getConversations();
@@ -86,11 +132,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
   }
 
   Widget _buildBody() {
-    if (_isLoading) {
+    if (_isLoading && _conversations.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_errorMessage != null) {
+    if (_errorMessage != null && _conversations.isEmpty) {
       return Center(
         child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
       );
