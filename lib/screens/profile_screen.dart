@@ -279,17 +279,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
                             ProfileCounter(
-                              label: 'Trails',
+                              label: 'trails',
                               value: _trails.length,
                             ),
                             ProfileCounter(
-                              label: 'Followers',
+                              label: 'followers',
                               value: _followersCount,
                               onTap: () =>
                                   _openFollowList(FollowListTab.followers),
                             ),
                             ProfileCounter(
-                              label: 'Following',
+                              label: 'following',
                               value: _followingCount,
                               onTap: () =>
                                   _openFollowList(FollowListTab.following),
@@ -311,7 +311,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                   const SizedBox(height: 28),
                   const Text(
-                    'Tus trails',
+                    'Your trails',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 12),
@@ -339,40 +339,107 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-/// Una fila (tarjeta) por cada trail guardado.
+/// Una fila compacta por cada trail guardado.
 ///
-/// Al tocarla se abre el diálogo con el detalle completo del trail
-/// (canciones, mapa, estadísticas). El cuadrado de la izquierda ya no
-/// se dibuja acá: el detalle vive en TrailDetailDialog.
+/// Diseño: mini-mapa cuadrado a la izquierda | nombre + fecha al centro |
+/// chevron de expansión a la derecha. Al tocarla se abre TrailDetailDialog.
 class TrailSummaryCard extends StatelessWidget {
   const TrailSummaryCard(this.trail, {super.key});
 
   final CompletedTrail trail;
 
+  static const _accentColor = Color(0xFF654CDD);
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+      'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
+    ];
+    return '${months[date.month - 1]}. ${date.day}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    // La lista de canciones (trail.songs) se sigue calculando y guardando,
-    // pero por ahora no se muestra acá — se va a reincorporar más adelante
-    // con un diseño definitivo dentro del detalle del trail.
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => TrailDetailDialog.show(context, trail),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                trail.name,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+    return GestureDetector(
+      onTap: () => TrailDetailDialog.show(context, trail),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A2A2A),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          children: [
+            // ── Mini-mapa cuadrado ──────────────────────────────────────
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: 64,
+                height: 64,
+                child: TrailMapPreview(
+                  segments: trail.segments,
+                  height: 64,
+                ),
               ),
-              const SizedBox(height: 10),
-              // Mini-mapa del trazado GPS
-              TrailMapPreview(segments: trail.segments),
-            ],
-          ),
+            ),
+            const SizedBox(width: 14),
+            // ── Nombre y fecha ──────────────────────────────────────────
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          trail.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      SvgPicture.asset(
+                        'assets/icons/star.svg',
+                        width: 14,
+                        height: 14,
+                        colorFilter: const ColorFilter.mode(
+                          _accentColor,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatDate(trail.completedAt),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.45),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // ── Chevron ─────────────────────────────────────────────────
+            SvgPicture.asset(
+              'assets/icons/expand.svg',
+              width: 20,
+              height: 20,
+              colorFilter: ColorFilter.mode(
+                Colors.white.withValues(alpha: 0.4),
+                BlendMode.srcIn,
+              ),
+            ),
+          ],
         ),
       ),
     );

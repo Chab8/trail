@@ -29,10 +29,21 @@ class ProfileCounter extends StatelessWidget {
       children: [
         Text(
           '$value',
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFFFEFEFE),
+          ),
         ),
         const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
+            color: Color(0xFF9C9C9C),
+          ),
+        ),
       ],
     );
 
