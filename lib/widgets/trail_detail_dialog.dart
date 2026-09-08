@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models/completed_trail.dart';
 import 'trail_map_preview.dart';
@@ -39,7 +40,7 @@ class TrailDetailDialog extends StatelessWidget {
             const SizedBox(height: 16),
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: TrailMapPreview(segments: trail.segments, height: 200),
+              child: TrailMapPreview(segments: trail.segments, height: 140),
             ),
             const SizedBox(height: 18),
             const Divider(color: Colors.white24, height: 1),
@@ -50,19 +51,19 @@ class TrailDetailDialog extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _StatChip(
-                  icon: Icons.access_time,
+                  iconPath: 'assets/icons/clock.svg',
                   label: _formatDuration(trail.duration),
                 ),
                 const SizedBox(width: 24),
                 _StatChip(
-                  icon: Icons.directions_walk,
+                  iconPath: 'assets/icons/steps.svg',
                   label: _formatDistance(trail.distanceMeters),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             _StatChip(
-              icon: Icons.music_note,
+              iconPath: 'assets/icons/music_note.svg',
               label: '${trail.songs.length} tracks',
             ),
             const SizedBox(height: 20),
@@ -103,7 +104,12 @@ class _TopBar extends StatelessWidget {
     return Row(
       children: [
         IconButton(
-          icon: const Icon(Icons.close, color: Colors.white70),
+          icon: SvgPicture.asset(
+            'assets/icons/exit_cross.svg',
+            width: 20,
+            height: 20,
+            colorFilter: const ColorFilter.mode(Colors.white70, BlendMode.srcIn),
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         Expanded(
@@ -120,7 +126,12 @@ class _TopBar extends StatelessWidget {
           ),
         ),
         IconButton(
-          icon: const Icon(Icons.edit_outlined, color: Colors.white70),
+          icon: SvgPicture.asset(
+            'assets/icons/edit.svg',
+            width: 20,
+            height: 20,
+            colorFilter: const ColorFilter.mode(Colors.white70, BlendMode.srcIn),
+          ),
           // TODO: implementar la edición del trail más adelante.
           onPressed: () {},
         ),
@@ -139,7 +150,12 @@ class _SectionHeader extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(Icons.star, color: _accentColor, size: 16),
+        SvgPicture.asset(
+          'assets/icons/star.svg',
+          width: 16,
+          height: 16,
+          colorFilter: const ColorFilter.mode(_accentColor, BlendMode.srcIn),
+        ),
         const SizedBox(width: 6),
         Text(
           label,
@@ -151,9 +167,9 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _StatChip extends StatelessWidget {
-  const _StatChip({required this.icon, required this.label});
+  const _StatChip({required this.iconPath, required this.label});
 
-  final IconData icon;
+  final String iconPath;
   final String label;
 
   @override
@@ -161,7 +177,12 @@ class _StatChip extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: Colors.white54),
+        SvgPicture.asset(
+          iconPath,
+          width: 14,
+          height: 14,
+          colorFilter: const ColorFilter.mode(Colors.white54, BlendMode.srcIn),
+        ),
         const SizedBox(width: 6),
         Text(
           label,
