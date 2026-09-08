@@ -361,7 +361,21 @@ class TrailSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => TrailDetailDialog.show(context, trail),
+      onTap: () {
+        // Capturar posición del card en pantalla para la animación de origen
+        final box = context.findRenderObject() as RenderBox?;
+        final screenSize = MediaQuery.of(context).size;
+        var origin = Alignment.center;
+        if (box != null) {
+          final pos = box.localToGlobal(Offset.zero);
+          final cardCenter = pos + Offset(box.size.width / 2, box.size.height / 2);
+          origin = Alignment(
+            ((cardCenter.dx / screenSize.width) * 2 - 1).clamp(-1.0, 1.0),
+            ((cardCenter.dy / screenSize.height) * 2 - 1).clamp(-1.0, 1.0),
+          );
+        }
+        TrailDetailDialog.show(context, trail, origin: origin);
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

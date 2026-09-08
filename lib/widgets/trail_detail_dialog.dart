@@ -25,11 +25,34 @@ class TrailDetailDialog extends StatelessWidget {
 
   final CompletedTrail trail;
 
-  static Future<void> show(BuildContext context, CompletedTrail trail) {
-    return showDialog<void>(
+  static Future<void> show(
+    BuildContext context,
+    CompletedTrail trail, {
+    Alignment origin = Alignment.center,
+  }) {
+    return showGeneralDialog<void>(
       context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Trail Detail',
       barrierColor: Colors.black54,
-      builder: (_) => TrailDetailDialog(trail: trail),
+      transitionDuration: const Duration(milliseconds: 380),
+      pageBuilder: (_, _, _) => TrailDetailDialog(trail: trail),
+      transitionBuilder: (ctx, animation, _, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutExpo,
+        );
+        // Fade rápido en la primera mitad de la animación
+        final fadeAnim = CurvedAnimation(
+          parent: animation,
+          curve: const Interval(0.0, 0.4, curve: Curves.easeIn),
+        );
+        return ScaleTransition(
+          scale: Tween<double>(begin: 0.05, end: 1.0).animate(curved),
+          alignment: origin,
+          child: FadeTransition(opacity: fadeAnim, child: child),
+        );
+      },
     );
   }
 
