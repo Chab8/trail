@@ -126,7 +126,8 @@ class _TrailControlsRowState extends State<TrailControlsRow>
         name: name,
         songs: _trailService.songs,
         segments: _trailService.segments,
-        startedAt: _trailService.startedAt,
+        duration: _trailService.elapsedDuration,
+        distanceMeters: _trailService.distanceMeters,
       );
       await _trailService.stop();
     } catch (_) {

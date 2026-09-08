@@ -1,12 +1,11 @@
 import 'package:flutter/foundation.dart';
-import 'package:geolocator/geolocator.dart' hide Position;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/completed_trail.dart';
 import '../models/trail_song.dart';
 import 'trail_service.dart';
 
-/// Biblioteca de trails finalizados. Ahora se guardan y se leen directamente
+/// Biblioteca de trails finalizados. Se guardan y se leen directamente
 /// de Supabase, para que sobrevivan un reinicio de la app.
 class TrailLibraryService extends ChangeNotifier {
   TrailLibraryService._internal();
@@ -18,15 +17,15 @@ class TrailLibraryService extends ChangeNotifier {
     final data = await _client
         .from('trails')
         .select(
-          'id, title, started_at, ended_at, gps_segments, '
+          'id, title, started_at, ended_at, distance_m, duration_seconds, gps_segments, '
           'trail_segments(track_id, track_name, artist, started_at)',
         )
         .eq('user_id', userId)
         .order('created_at', ascending: false);
 
     return data.map<CompletedTrail>((row) {
-      final rawSegments = row['trail_segments'] as List<dynamic>? ?? [];
-      final songs = rawSegments
+      final rawSegmentsSongs = row['trail_segments'] as List<dynamic>? ?? [];
+      final songs = rawSegmentsSongs
           .whereType<Map<String, dynamic>>()
           .where((s) => (s['track_id'] as String? ?? '').isNotEmpty)
           .map(
@@ -34,7 +33,7 @@ class TrailLibraryService extends ChangeNotifier {
               trackId: s['track_id'] as String? ?? '',
               title: s['track_name'] as String? ?? '',
               artist: s['artist'] as String? ?? '',
-              capturedAt: DateTime.parse(s['started_at'] as String),
+              startedAt: DateTime.parse(s['started_at'] as String),
             ),
           )
           .toList();
@@ -66,6 +65,10 @@ class TrailLibraryService extends ChangeNotifier {
         name: row['title'] as String? ?? 'Trail',
         songs: songs,
         completedAt: DateTime.parse(completedAtRaw as String),
+        duration: Duration(
+          seconds: (row['duration_seconds'] as num?)?.toInt() ?? 0,
+        ),
+        distanceMeters: (row['distance_m'] as num?)?.toDouble() ?? 0,
         segments: gpsSegments,
       );
     }).toList();
@@ -85,28 +88,20 @@ class TrailLibraryService extends ChangeNotifier {
     required String name,
     required List<TrailSong> songs,
     required List<List<TrailPoint>> segments,
-    DateTime? startedAt,
+    required Duration duration,
+    required double distanceMeters,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw StateError('No hay una sesión iniciada.');
 
     final now = DateTime.now().toUtc();
-    final tripStart = (startedAt ?? now).toUtc();
     final trimmedName = name.trim();
     final title = trimmedName.isEmpty ? 'Trail' : trimmedName;
 
-    // Sumamos la distancia total recorrida en todos los tramos GPS.
-    double totalMeters = 0;
-    for (final segment in segments) {
-      for (var i = 1; i < segment.length; i++) {
-        totalMeters += Geolocator.distanceBetween(
-          segment[i - 1].latitude,
-          segment[i - 1].longitude,
-          segment[i].latitude,
-          segment[i].longitude,
-        );
-      }
-    }
+    // Aproximamos "started_at" restando la duración activa al momento de
+    // guardar. No es exacto si hubo pausas largas, pero sirve como
+    // referencia temporal razonable del trail.
+    final tripStart = now.subtract(duration);
 
     // Convertimos los segmentos GPS a JSON simple para guardarlos en la
     // columna gps_segments de la tabla trails.
@@ -131,7 +126,8 @@ class TrailLibraryService extends ChangeNotifier {
           'title': title,
           'started_at': tripStart.toIso8601String(),
           'ended_at': now.toIso8601String(),
-          'distance_m': totalMeters,
+          'distance_m': distanceMeters,
+          'duration_seconds': duration.inSeconds,
           'gps_segments': segmentsJson,
         })
         .select('id')
@@ -141,19 +137,19 @@ class TrailLibraryService extends ChangeNotifier {
 
     if (songs.isNotEmpty) {
       final sorted = [...songs]
-        ..sort((a, b) => a.capturedAt.compareTo(b.capturedAt));
+        ..sort((a, b) => a.startedAt.compareTo(b.startedAt));
 
       final rows = <Map<String, dynamic>>[];
       for (var i = 0; i < sorted.length; i++) {
         final song = sorted[i];
         final segmentEnd =
-            i + 1 < sorted.length ? sorted[i + 1].capturedAt : now;
+            i + 1 < sorted.length ? sorted[i + 1].startedAt : now;
         rows.add({
           'trail_id': trailId,
           'track_id': song.trackId,
           'track_name': song.title,
           'artist': song.artist,
-          'started_at': song.capturedAt.toUtc().toIso8601String(),
+          'started_at': song.startedAt.toUtc().toIso8601String(),
           'ended_at': segmentEnd.toUtc().toIso8601String(),
         });
       }

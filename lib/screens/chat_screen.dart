@@ -6,9 +6,9 @@ import '../services/chat_service.dart';
 import 'user_profile_screen.dart';
 
 /// Pantalla de conversación con otra persona, estilo WhatsApp: burbujas
-/// de mensaje, un campo de texto abajo para escribir, y actualización
-/// en vivo (si la otra persona te escribe mientras tenés el chat
-/// abierto, el mensaje aparece solo).
+/// de mensaje con tildes de enviado/recibido/visto, un campo de texto
+/// abajo para escribir, actualización en vivo, y la posibilidad de
+/// mantener apretado un mensaje propio para editarlo o borrarlo.
 class ChatScreen extends StatefulWidget {
   final String conversationId;
   final String otherUserId;
@@ -104,6 +104,126 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Future<void> _handleMessageLongPress(ChatMessage message) async {
+    // Solo podés editar o borrar TUS PROPIOS mensajes.
+    if (message.senderId != _myId) return;
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Editar mensaje'),
+              onTap: () => Navigator.of(sheetContext).pop('edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              title: const Text(
+                'Eliminar mensaje',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+              onTap: () => Navigator.of(sheetContext).pop('delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || action == null) return;
+
+    if (action == 'edit') {
+      await _showEditDialog(message);
+    } else if (action == 'delete') {
+      await _confirmDelete(message);
+    }
+  }
+
+  Future<void> _showEditDialog(ChatMessage message) async {
+    final controller = TextEditingController(text: message.content);
+
+    final newContent = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Editar mensaje'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 1,
+          maxLines: 5,
+          textCapitalization: TextCapitalization.sentences,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+
+    if (newContent == null ||
+        newContent.isEmpty ||
+        newContent == message.content) {
+      return;
+    }
+
+    try {
+      await _chatService.editMessage(
+        messageId: message.id,
+        newContent: newContent,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo editar el mensaje.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmDelete(ChatMessage message) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('¿Eliminar este mensaje?'),
+        content: const Text('Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(
+              'Eliminar',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _chatService.deleteMessage(message.id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo eliminar el mensaje.')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasAvatar =
@@ -191,7 +311,13 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemBuilder: (context, index) {
                       final message = messages[index];
                       final isMine = message.senderId == _myId;
-                      return _MessageBubble(message: message, isMine: isMine);
+                      return _MessageBubble(
+                        message: message,
+                        isMine: isMine,
+                        onLongPress: isMine
+                            ? () => _handleMessageLongPress(message)
+                            : null,
+                      );
                     },
                   );
                 },
@@ -259,8 +385,13 @@ class _ChatScreenState extends State<ChatScreen> {
 class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMine;
+  final VoidCallback? onLongPress;
 
-  const _MessageBubble({required this.message, required this.isMine});
+  const _MessageBubble({
+    required this.message,
+    required this.isMine,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -270,35 +401,61 @@ class _MessageBubble extends StatelessWidget {
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.75,
-        ),
-        decoration: BoxDecoration(
-          color: bubbleColor,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isMine ? 16 : 4),
-            bottomRight: Radius.circular(isMine ? 4 : 16),
+      child: GestureDetector(
+        onLongPress: onLongPress,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(context).width * 0.75,
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(message.content, style: const TextStyle(color: Colors.white)),
-            const SizedBox(height: 4),
-            Text(
-              _formatTime(message.createdAt),
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.65),
-                fontSize: 10,
-              ),
+          decoration: BoxDecoration(
+            color: bubbleColor,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(16),
+              topRight: const Radius.circular(16),
+              bottomLeft: Radius.circular(isMine ? 16 : 4),
+              bottomRight: Radius.circular(isMine ? 4 : 16),
             ),
-          ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                message.content,
+                style: const TextStyle(color: Colors.white),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (message.editedAt != null) ...[
+                    Text(
+                      'editado',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.55),
+                        fontSize: 10,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Text(
+                    _formatTime(message.createdAt),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.65),
+                      fontSize: 10,
+                    ),
+                  ),
+                  if (isMine) ...[
+                    const SizedBox(width: 4),
+                    _StatusTicks(message: message),
+                  ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -309,5 +466,34 @@ class _MessageBubble extends StatelessWidget {
     final hour = local.hour.toString().padLeft(2, '0');
     final minute = local.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+}
+
+/// Las tildes de estado, como en WhatsApp:
+/// - 1 tilde gris: el mensaje se envió.
+/// - 2 tildes grises: la otra persona lo recibió.
+/// - 2 tildes celestes: la otra persona lo vio.
+class _StatusTicks extends StatelessWidget {
+  final ChatMessage message;
+
+  const _StatusTicks({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final IconData icon;
+    final Color color;
+
+    if (message.readAt != null) {
+      icon = Icons.done_all;
+      color = const Color(0xFF34B7F1);
+    } else if (message.deliveredAt != null) {
+      icon = Icons.done_all;
+      color = Colors.white.withValues(alpha: 0.65);
+    } else {
+      icon = Icons.done;
+      color = Colors.white.withValues(alpha: 0.65);
+    }
+
+    return Icon(icon, size: 14, color: color);
   }
 }
