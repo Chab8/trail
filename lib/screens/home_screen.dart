@@ -7,6 +7,7 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import '../services/dominant_color_service.dart';
 import '../services/spotify_service.dart';
 import '../services/trail_service.dart';
+import '../widgets/map_search_bar.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -319,14 +320,29 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: MapWidget(
-        key: const ValueKey('mapWidget'),
-        styleUri: 'mapbox://styles/chab8/cmm6hxker009n01s8ftpbgmdc',
-        cameraOptions: CameraOptions(
-          center: Point(coordinates: Position(-65.2226, -26.8241)),
-          zoom: 12.0,
-        ),
-        onMapCreated: _onMapCreated,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MapWidget(
+              key: const ValueKey('mapWidget'),
+              styleUri: 'mapbox://styles/chab8/cmm6hxker009n01s8ftpbgmdc',
+              cameraOptions: CameraOptions(
+                center: Point(coordinates: Position(-65.2226, -26.8241)),
+                zoom: 12.0,
+              ),
+              onMapCreated: _onMapCreated,
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 16, top: 8),
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: MapSearchBar(),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
