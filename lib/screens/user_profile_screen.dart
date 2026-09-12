@@ -363,7 +363,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       );
     }
 
-    return Column(children: _trails.map(TrailSummaryCard.new).toList());
+    return Column(
+      children: _trails
+          .map(
+            (trail) =>
+                TrailSummaryCard(trail, isOwnProfile: _isOwnProfile),
+          )
+          .toList(),
+    );
   }
 }
 

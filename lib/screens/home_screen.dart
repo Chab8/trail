@@ -64,14 +64,14 @@ class _HomeScreenState extends State<HomeScreen> {
       LogoSettings(
         position: OrnamentPosition.BOTTOM_LEFT,
         marginLeft: 4,
-        marginBottom: 150,
+        marginBottom: 4,
       ),
     );
     await controller.attribution.updateSettings(
       AttributionSettings(
         position: OrnamentPosition.BOTTOM_LEFT,
         marginLeft: 50,
-        marginBottom: 150,
+        marginBottom: 4,
         clickable: true,
       ),
     );

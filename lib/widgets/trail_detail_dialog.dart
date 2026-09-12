@@ -22,14 +22,23 @@ const _dividerWidth = 248.0;
 /// Detalle expandido de un trail: nombre, mapa, estadísticas (duración,
 /// distancia, cantidad de tracks) y el artista más escuchado.
 class TrailDetailDialog extends StatelessWidget {
-  const TrailDetailDialog({super.key, required this.trail});
+  const TrailDetailDialog({
+    super.key,
+    required this.trail,
+    this.isOwnTrail = true,
+  });
 
   final CompletedTrail trail;
+
+  /// Si es `false` (perfil de otro usuario), se oculta el botón de editar:
+  /// solo el dueño del trail puede editarlo.
+  final bool isOwnTrail;
 
   static Future<void> show(
     BuildContext context,
     CompletedTrail trail, {
     Alignment origin = Alignment.center,
+    bool isOwnTrail = true,
   }) {
     return showGeneralDialog<void>(
       context: context,
@@ -37,7 +46,8 @@ class TrailDetailDialog extends StatelessWidget {
       barrierLabel: 'Trail Detail',
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 380),
-      pageBuilder: (_, _, _) => TrailDetailDialog(trail: trail),
+      pageBuilder: (_, _, _) =>
+          TrailDetailDialog(trail: trail, isOwnTrail: isOwnTrail),
       transitionBuilder: (ctx, animation, _, child) {
         final curved = CurvedAnimation(
           parent: animation,
@@ -198,27 +208,30 @@ class TrailDetailDialog extends StatelessWidget {
                 ),
 
                 // ── Botón editar — esquina superior derecha ───────────────
-                Positioned(
-                  top: 14,
-                  right: 14,
-                  child: GestureDetector(
-                    // TODO: implementar la edición del trail más adelante.
-                    onTap: () {},
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(6),
-                      child: SvgPicture.asset(
-                        'assets/icons/edit.svg',
-                        width: 14,
-                        height: 14,
-                        colorFilter: const ColorFilter.mode(
-                          _colorSub,
-                          BlendMode.srcIn,
+                // Solo se muestra en tus propios trails; en el perfil de
+                // otro usuario no tiene sentido poder editarlo.
+                if (isOwnTrail)
+                  Positioned(
+                    top: 14,
+                    right: 14,
+                    child: GestureDetector(
+                      // TODO: implementar la edición del trail más adelante.
+                      onTap: () {},
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: SvgPicture.asset(
+                          'assets/icons/edit.svg',
+                          width: 14,
+                          height: 14,
+                          colorFilter: const ColorFilter.mode(
+                            _colorSub,
+                            BlendMode.srcIn,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ),

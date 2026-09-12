@@ -11,6 +11,9 @@ const double _trailRowHeight = 60;
 const double _trailButtonSize = 58;
 const double _trailGap = 10;
 
+/// Qué eligió el usuario en el diálogo de "Guardar trail".
+enum _FinishTrailChoice { cancel, discard, save }
+
 /// Fila que combina la barra de "reproduciendo ahora" (Spotify) con los
 /// controles del Trail: play, pause y stop.
 ///
@@ -91,39 +94,111 @@ class _TrailControlsRowState extends State<TrailControlsRow>
       );
       return;
     }
-    if (!mounted) return;
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Guardar trail'),
-        content: TextFormField(
-          initialValue: trailName,
-          autofocus: true,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(labelText: 'Nombre del trail'),
-          onChanged: (value) => trailName = value,
-          onFieldSubmitted: (value) => Navigator.of(dialogContext).pop(value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(trailName),
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
-    );
 
-    // Cancelar mantiene el trail pausado para que se pueda retomar.
-    if (name == null || !mounted) return;
+    // Si el usuario elige "Descartar" pero después se arrepiente en la
+    // confirmación, este bucle vuelve a mostrar el diálogo de guardado
+    // con el nombre que ya había escrito.
+    while (true) {
+      if (!mounted) return;
+
+      final choice = await showDialog<_FinishTrailChoice>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Guardar trail'),
+          content: TextFormField(
+            initialValue: trailName,
+            autofocus: true,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(labelText: 'Nombre del trail'),
+            onChanged: (value) => trailName = value,
+            onFieldSubmitted: (value) =>
+                Navigator.of(dialogContext).pop(_FinishTrailChoice.save),
+          ),
+          actionsAlignment: MainAxisAlignment.spaceBetween,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext)
+                  .pop(_FinishTrailChoice.discard),
+              style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+              child: const Text('Descartar'),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext)
+                      .pop(_FinishTrailChoice.cancel),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext)
+                      .pop(_FinishTrailChoice.save),
+                  child: const Text('Guardar'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      // Cerrar el diálogo tocando afuera, o elegir "Cancelar", deja el
+      // trail pausado para poder retomarlo o finalizarlo más tarde.
+      if (choice == null || choice == _FinishTrailChoice.cancel) return;
+
+      if (choice == _FinishTrailChoice.save) {
+        await _saveTrail(trailName);
+        return;
+      }
+
+      // choice == _FinishTrailChoice.discard: pedimos confirmación antes
+      // de borrar definitivamente el recorrido.
+      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (confirmContext) => AlertDialog(
+          title: const Text(
+            '¿Estás seguro que quieres eliminar este trail?',
+          ),
+          content: const Text(
+            'Se perderá todo el recorrido registrado. Esta acción no se '
+            'puede deshacer.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(confirmContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(confirmContext).pop(true),
+              style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true) {
+        await _trailService.stop();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Trail descartado.')),
+          );
+        }
+        return;
+      }
+      // Si canceló la confirmación, el bucle vuelve a mostrar el diálogo
+      // de guardado.
+    }
+  }
+
+  Future<void> _saveTrail(String trailName) async {
+    if (!mounted) return;
+    final library = TrailLibraryService.instance;
 
     setState(() => _isFinishing = true);
     try {
       await library.addTrail(
-        name: name,
+        name: trailName,
         songs: _trailService.songs,
         segments: _trailService.segments,
         duration: _trailService.elapsedDuration,

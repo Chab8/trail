@@ -345,9 +345,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 /// Diseño: mini-mapa cuadrado a la izquierda | nombre + fecha al centro |
 /// chevron de expansión a la derecha. Al tocarla se abre TrailDetailDialog.
 class TrailSummaryCard extends StatelessWidget {
-  const TrailSummaryCard(this.trail, {super.key});
+  const TrailSummaryCard(this.trail, {super.key, this.isOwnProfile = true});
 
   final CompletedTrail trail;
+
+  /// `true` cuando se muestra en tu propio perfil. En el perfil de otro
+  /// usuario se pasa `false` para que el detalle no muestre el lápiz de
+  /// edición.
+  final bool isOwnProfile;
 
   static const _accentColor = Color(0xFF654CDD);
 
@@ -375,7 +380,12 @@ class TrailSummaryCard extends StatelessWidget {
             ((cardCenter.dy / screenSize.height) * 2 - 1).clamp(-1.0, 1.0),
           );
         }
-        TrailDetailDialog.show(context, trail, origin: origin);
+        TrailDetailDialog.show(
+          context,
+          trail,
+          origin: origin,
+          isOwnTrail: isOwnProfile,
+        );
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
