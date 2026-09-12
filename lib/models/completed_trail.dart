@@ -8,6 +8,7 @@ import '../services/trail_service.dart';
 /// la duración activa y la distancia recorrida.
 class CompletedTrail {
   const CompletedTrail({
+    required this.id,
     required this.name,
     required this.songs,
     required this.completedAt,
@@ -16,6 +17,9 @@ class CompletedTrail {
     this.segments = const [],
   });
 
+  /// El ID del trail en Supabase (tabla `trails`). Lo necesitamos para
+  /// poder guardar los likes asociados a este trail específico.
+  final String id;
   final String name;
   final List<TrailSong> songs;
   final DateTime completedAt;
@@ -77,6 +81,7 @@ class CompletedTrail {
     final rawSegments = map['segments'] as List<dynamic>? ?? [];
 
     return CompletedTrail(
+      id: map['id'] as String? ?? '',
       name: map['name'] as String? ?? 'Trail',
       songs: rawSongs
           .whereType<Map<String, dynamic>>()
@@ -106,6 +111,7 @@ class CompletedTrail {
   }
 
   Map<String, dynamic> toMap() => {
+        'id': id,
         'name': name,
         'songs': songs.map((s) => s.toMap()).toList(),
         'created_at': completedAt.toIso8601String(),

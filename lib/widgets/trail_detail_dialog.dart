@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models/completed_trail.dart';
+import 'trail_like_button.dart';
 import 'trail_map_preview.dart';
 
 /// Color de acento morado usado en toda la app.
@@ -98,15 +99,23 @@ class TrailDetailDialog extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        // ── Mapa 116 × 86 sin fondo ───────────────────────
-                        SizedBox(
-                          width: 116,
-                          height: 86,
-                          child: TrailMapPreview(
-                            segments: trail.segments,
-                            height: 86,
-                            backgroundColor: Colors.transparent,
-                          ),
+                        // ── Mapa 116 × 86 sin fondo + likes a la derecha ──
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            SizedBox(
+                              width: 116,
+                              height: 86,
+                              child: TrailMapPreview(
+                                segments: trail.segments,
+                                height: 86,
+                                backgroundColor: Colors.transparent,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            TrailLikeButton(trailId: trail.id),
+                          ],
                         ),
                         const SizedBox(height: 16),
                         // Separador

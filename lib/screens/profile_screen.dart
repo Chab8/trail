@@ -11,6 +11,7 @@ import '../services/profile_service.dart';
 import '../services/trail_library_service.dart';
 import '../widgets/profile_counter.dart';
 import '../widgets/trail_detail_dialog.dart';
+import '../widgets/trail_like_button.dart';
 import '../widgets/trail_map_preview.dart';
 import 'follow_list_screen.dart';
 import 'settings_screen.dart';
@@ -383,75 +384,85 @@ class TrailSummaryCard extends StatelessWidget {
           color: const Color(0xFF2A2A2A),
           borderRadius: BorderRadius.circular(18),
         ),
-        child: Row(
+        child: Stack(
           children: [
-            // ── Mini-mapa cuadrado ──────────────────────────────────────
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: SizedBox(
-                width: 64,
-                height: 64,
-                child: TrailMapPreview(
-                  segments: trail.segments,
-                  height: 64,
+            Row(
+              children: [
+                // ── Mini-mapa cuadrado ──────────────────────────────────
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    width: 64,
+                    height: 64,
+                    child: TrailMapPreview(
+                      segments: trail.segments,
+                      height: 64,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            // ── Nombre y fecha ──────────────────────────────────────────
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                const SizedBox(width: 14),
+                // ── Nombre y fecha ────────────────────────────────────────
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Flexible(
-                        child: Text(
-                          trail.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              trail.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 6),
+                          SvgPicture.asset(
+                            'assets/icons/star.svg',
+                            width: 14,
+                            height: 14,
+                            colorFilter: const ColorFilter.mode(
+                              _accentColor,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      SvgPicture.asset(
-                        'assets/icons/star.svg',
-                        width: 14,
-                        height: 14,
-                        colorFilter: const ColorFilter.mode(
-                          _accentColor,
-                          BlendMode.srcIn,
+                      const SizedBox(height: 4),
+                      Text(
+                        _formatDate(trail.completedAt),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.45),
+                          fontSize: 13,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatDate(trail.completedAt),
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.45),
-                      fontSize: 13,
-                    ),
+                ),
+                const SizedBox(width: 8),
+                // ── Chevron ───────────────────────────────────────────────
+                SvgPicture.asset(
+                  'assets/icons/expand.svg',
+                  width: 20,
+                  height: 20,
+                  colorFilter: ColorFilter.mode(
+                    Colors.white.withValues(alpha: 0.4),
+                    BlendMode.srcIn,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            // ── Chevron ─────────────────────────────────────────────────
-            SvgPicture.asset(
-              'assets/icons/expand.svg',
-              width: 20,
-              height: 20,
-              colorFilter: ColorFilter.mode(
-                Colors.white.withValues(alpha: 0.4),
-                BlendMode.srcIn,
-              ),
+            // ── Likes: corazón + contador, abajo a la derecha ────────────
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: TrailLikeButton(trailId: trail.id),
             ),
           ],
         ),

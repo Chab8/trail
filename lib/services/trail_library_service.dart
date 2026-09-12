@@ -62,6 +62,7 @@ class TrailLibraryService extends ChangeNotifier {
           .toList();
 
       return CompletedTrail(
+        id: row['id'] as String,
         name: row['title'] as String? ?? 'Trail',
         songs: songs,
         completedAt: DateTime.parse(completedAtRaw as String),
