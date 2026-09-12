@@ -41,7 +41,9 @@ class TrailLibraryService extends ChangeNotifier {
       final completedAtRaw = row['ended_at'] ?? row['started_at'];
 
       // Reconstruimos el trazado GPS a partir de la columna gps_segments:
-      // una lista de segmentos, cada uno con puntos {lat, lon, ts}.
+      // una lista de segmentos, cada uno con puntos {lat, lon, ts, color}.
+      // "color" es el color (ARGB) de la canción que sonaba en ese punto;
+      // puede faltar en trails guardados antes de este cambio.
       final rawGpsSegments = row['gps_segments'] as List<dynamic>? ?? [];
       final gpsSegments = rawGpsSegments
           .whereType<List<dynamic>>()
@@ -55,6 +57,7 @@ class TrailLibraryService extends ChangeNotifier {
                     recordedAt: DateTime.fromMillisecondsSinceEpoch(
                       p['ts'] as int? ?? 0,
                     ),
+                    colorValue: p['color'] as int?,
                   ),
                 )
                 .toList(),
@@ -105,7 +108,9 @@ class TrailLibraryService extends ChangeNotifier {
     final tripStart = now.subtract(duration);
 
     // Convertimos los segmentos GPS a JSON simple para guardarlos en la
-    // columna gps_segments de la tabla trails.
+    // columna gps_segments de la tabla trails. Guardamos también el color
+    // (ARGB) que tenía cada punto, para poder redibujar el trail más
+    // adelante con los mismos colores que tuvo mientras se grababa.
     final segmentsJson = segments
         .map(
           (segment) => segment
@@ -114,6 +119,7 @@ class TrailLibraryService extends ChangeNotifier {
                   'lat': p.latitude,
                   'lon': p.longitude,
                   'ts': p.recordedAt.millisecondsSinceEpoch,
+                  if (p.colorValue != null) 'color': p.colorValue,
                 },
               )
               .toList(),

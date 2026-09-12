@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:ui' show Color;
 
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../models/trail_song.dart';
+import 'dominant_color_service.dart';
 import 'spotify_service.dart';
 
 /// Estados posibles de un Trail (recorrido musical).
@@ -18,11 +20,17 @@ class TrailPoint {
     required this.latitude,
     required this.longitude,
     required this.recordedAt,
+    this.colorValue,
   });
 
   final double latitude;
   final double longitude;
   final DateTime recordedAt;
+
+  /// Color (ARGB) de la portada de la canción que sonaba cuando se
+  /// registró este punto. Es null para los puntos grabados antes de
+  /// detectar la primera canción; en ese caso se usa un color de respaldo.
+  final int? colorValue;
 }
 
 /// Maneja el Trail que se está registrando en este momento.
@@ -55,6 +63,11 @@ class TrailService extends ChangeNotifier {
   Duration _accumulatedDuration = Duration.zero;
   double _accumulatedDistanceMeters = 0;
 
+  /// Color (ARGB) que se le asigna a cada punto nuevo del recorrido. Se
+  /// actualiza cada vez que detectamos un cambio de canción, calculando el
+  /// color dominante de la portada del álbum.
+  int? _currentPointColor;
+
   TrailStatus get status => _status;
 
   bool get isIdle => _status == TrailStatus.idle;
@@ -62,6 +75,10 @@ class TrailService extends ChangeNotifier {
   bool get isPaused => _status == TrailStatus.paused;
   bool get isStarting => _isStarting;
   int get trailRevision => _trailRevision;
+
+  /// Color (ARGB) que se le está asignando en este momento al trazado del
+  /// trail. Es null si todavía no se detectó ninguna canción.
+  int? get currentColor => _currentPointColor;
 
   /// Tiempo total que el trail estuvo activo (sin contar las pausas).
   Duration get elapsedDuration => _activeSince == null
@@ -114,6 +131,7 @@ class TrailService extends ChangeNotifier {
         _trailRevision++;
         _accumulatedDuration = Duration.zero;
         _accumulatedDistanceMeters = 0;
+        _currentPointColor = null;
       }
       _segments.add([_trailPointFrom(position)]);
       _status = TrailStatus.active;
@@ -143,7 +161,6 @@ class TrailService extends ChangeNotifier {
   }
 
   /// Pausa el registro. Al retomar se iniciará otro segmento del recorrido.
-  /// Pausa el registro. Al retomar se iniciará otro segmento del recorrido.
   Future<void> pause() async {
     if (_status != TrailStatus.active) return;
 
@@ -156,7 +173,6 @@ class TrailService extends ChangeNotifier {
     await subscription?.cancel();
   }
 
-  /// Finaliza el registro, pero deja visible el recorrido hasta iniciar otro.
   /// Finaliza el registro, pero deja visible el recorrido hasta iniciar otro.
   Future<void> stop() async {
     if (_status == TrailStatus.idle && !_isStarting) return;
@@ -257,6 +273,28 @@ class TrailService extends ChangeNotifier {
       ),
     );
     notifyListeners();
+
+    // A partir de ahora, el trazado del trail toma el color de la portada
+    // de esta canción nueva, hasta que vuelva a cambiar.
+    await _updateColorForCurrentSong(track.albumArtUrl);
+  }
+
+  /// Calcula el color dominante de la portada del álbum y lo deja
+  /// guardado para que los próximos puntos del recorrido lo usen.
+  Future<void> _updateColorForCurrentSong(String? albumArtUrl) async {
+    try {
+      final color = await DominantColorService.getColor(albumArtUrl);
+      if (color == null || !isActive) return;
+
+      final colorValue = color.toARGB32();
+      if (_currentPointColor == colorValue) return;
+
+      _currentPointColor = colorValue;
+      notifyListeners();
+    } catch (_) {
+      // Si falla la descarga de la portada, seguimos usando el color
+      // anterior en vez de interrumpir el trail.
+    }
   }
 
   void _recordPosition(Position position) {
@@ -274,9 +312,6 @@ class TrailService extends ChangeNotifier {
     // Conservamos movimientos de al menos un metro. El filtro nativo se deja
     // en cero porque algunos dispositivos emiten actualizaciones muy poco
     // frecuentes cuando se configura un filtro de distancia mayor.
-    // Conservamos movimientos de al menos un metro. El filtro nativo se deja
-    // en cero porque algunos dispositivos emiten actualizaciones muy poco
-    // frecuentes cuando se configura un filtro de distancia mayor.
     if (distance < 1) return;
 
     _accumulatedDistanceMeters += distance;
@@ -289,6 +324,7 @@ class TrailService extends ChangeNotifier {
       latitude: position.latitude,
       longitude: position.longitude,
       recordedAt: position.timestamp,
+      colorValue: _currentPointColor,
     );
   }
 }

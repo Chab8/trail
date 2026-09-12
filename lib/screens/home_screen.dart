@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart' hide Position;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
-import '../services/dominant_color_service.dart';
-import '../services/spotify_service.dart';
 import '../services/trail_service.dart';
 import '../widgets/map_search_bar.dart';
 
@@ -17,7 +15,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Color que se conserva cuando no hay una canción reproduciéndose.
+  // Color que se usa para los tramos grabados antes de detectar una
+  // canción (por ejemplo, el primer instante del trail).
   static const _fallbackTrailColor = 0xFF1ED760;
   static const _trailLineWidth = 28.0;
 
@@ -25,19 +24,17 @@ class _HomeScreenState extends State<HomeScreen> {
   MapboxMap? _mapboxMap;
   PolylineAnnotationManager? _trailLineManager;
   CircleAnnotationManager? _trailStartManager;
-  final List<PolylineAnnotation?> _segmentLines = [];
-  final List<int> _renderedPointCounts = [];
+
+  // Por cada segmento geográfico (separado por pausas), guardamos la lista
+  // de "tramos de color": sub-recorridos dentro del segmento que comparten
+  // el mismo color porque sonaba la misma canción.
+  final List<List<_ColorRun>> _segmentRuns = [];
+  int _renderedStartMarkerCount = 0;
   bool _isDisposed = false;
   bool _isRenderingTrail = false;
   bool _needsTrailRender = false;
   int _renderedTrailRevision = -1;
-  int _renderedTrailColor = -1;
-  double _renderedTrailLineWidth = -1;
-  int _renderedStartMarkerCount = 0;
   int _lastCenteredSegmentCount = 0;
-  int _trailColor = _fallbackTrailColor;
-  int _colorTrailRevision = -1;
-  bool _needsStartMarkerRefresh = false;
 
   @override
   void initState() {
@@ -124,41 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onTrailChanged() {
     if (_trailService.isIdle) _lastCenteredSegmentCount = 0;
-
-    final revision = _trailService.trailRevision;
-    if (_trailService.segments.isNotEmpty && revision != _colorTrailRevision) {
-      _colorTrailRevision = revision;
-      _trailColor = _fallbackTrailColor;
-      _needsStartMarkerRefresh = true;
-      unawaited(_loadTrailColor(revision));
-    }
-
     _scheduleTrailRender();
-  }
-
-  /// El color se define al iniciar cada trail para que todo su recorrido
-  /// represente la canción que se estaba reproduciendo en ese momento.
-  Future<void> _loadTrailColor(int trailRevision) async {
-    try {
-      final track = await SpotifyService.instance.getCurrentlyPlaying();
-      if (track == null || !track.isPlaying) return;
-
-      final color = await DominantColorService.getColor(track.albumArtUrl);
-      if (color == null ||
-          _isDisposed ||
-          trailRevision != _trailService.trailRevision) {
-        return;
-      }
-
-      final colorValue = color.toARGB32();
-      if (_trailColor == colorValue) return;
-
-      _trailColor = colorValue;
-      _needsStartMarkerRefresh = true;
-      _scheduleTrailRender();
-    } catch (_) {
-      // Sin una canción o sin conexión usamos el color de respaldo.
-    }
   }
 
   void _scheduleTrailRender() {
@@ -173,8 +136,9 @@ class _HomeScreenState extends State<HomeScreen> {
     unawaited(_renderTrail());
   }
 
-  /// Sincroniza sólo los puntos nuevos con Mapbox. No recreamos la línea en
-  /// cada lectura GPS, así la polilínea se actualiza de forma estable al andar.
+  /// Sincroniza sólo los tramos nuevos con Mapbox. No recreamos las líneas
+  /// en cada lectura GPS, así el trazado se actualiza de forma estable al
+  /// andar.
   Future<void> _renderTrail() async {
     _isRenderingTrail = true;
 
@@ -198,18 +162,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final revision = _trailService.trailRevision;
     final segments = _trailService.segments;
+
     if (_renderedTrailRevision != revision) {
       if (_renderedTrailRevision != -1) {
         await lineManager.deleteAll();
         await startManager.deleteAll();
       }
       _renderedTrailRevision = revision;
-      _renderedTrailColor = -1;
-      _renderedTrailLineWidth = -1;
       _renderedStartMarkerCount = 0;
-      _segmentLines.clear();
-      _renderedPointCounts.clear();
-      _needsStartMarkerRefresh = false;
+      _segmentRuns.clear();
     }
 
     if (_isDisposed ||
@@ -218,22 +179,22 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    if (_needsStartMarkerRefresh) {
-      await startManager.deleteAll();
-      _renderedStartMarkerCount = 0;
-      _needsStartMarkerRefresh = false;
+    while (_segmentRuns.length < segments.length) {
+      _segmentRuns.add(<_ColorRun>[]);
     }
 
     // Cada segmento comienza con un punto visible; al retomar habrá un punto
-    // nuevo y la ausencia de una línea entre ambos representa la pausa.
+    // nuevo y la ausencia de una línea entre ambos representa la pausa. El
+    // color del punto de inicio es el que sonaba en ese instante.
     while (_renderedStartMarkerCount < segments.length) {
       final segment = segments[_renderedStartMarkerCount];
       if (segment.isNotEmpty) {
+        final markerColor = segment.first.colorValue ?? _fallbackTrailColor;
         try {
           await startManager.create(
             CircleAnnotationOptions(
               geometry: _mapboxPoint(segment.first),
-              circleColor: _trailColor,
+              circleColor: markerColor,
               circleRadius: 8,
             ),
           );
@@ -245,53 +206,78 @@ class _HomeScreenState extends State<HomeScreen> {
       _renderedStartMarkerCount++;
     }
 
-    while (_segmentLines.length < segments.length) {
-      _segmentLines.add(null);
-      _renderedPointCounts.add(0);
-    }
-
     for (var index = 0; index < segments.length; index++) {
       final segment = segments[index];
       if (segment.length < 2) continue;
 
-      final geometry = LineString(
-        coordinates: segment.map(_mapboxPosition).toList(),
-      );
-      final line = _segmentLines[index];
-      if (line == null) {
-        _segmentLines[index] = await lineManager.create(
-          PolylineAnnotationOptions(
-            geometry: geometry,
-            lineColor: _trailColor,
-            // Evita que la iluminación del estilo de Mapbox oscurezca el
-            // color extraído de la portada.
-            lineEmissiveStrength: 1,
-            lineJoin: LineJoin.ROUND,
-            lineWidth: _trailLineWidth,
-          ),
-        );
-      } else {
-        final geometryChanged = _renderedPointCounts[index] != segment.length;
-        final styleChanged =
-            _renderedTrailColor != _trailColor ||
-            _renderedTrailLineWidth != _trailLineWidth;
-        if (geometryChanged || styleChanged) {
-          if (geometryChanged) line.geometry = geometry;
-          if (styleChanged) {
-            line.lineColor = _trailColor;
-            line.lineEmissiveStrength = 1;
-            line.lineWidth = _trailLineWidth;
-          }
-          await lineManager.update(line);
-        }
+      final runs = _splitPointsByColor(segment);
+      final renderedRuns = _segmentRuns[index];
+
+      while (renderedRuns.length < runs.length) {
+        final newRunPoints = runs[renderedRuns.length];
+        final color = newRunPoints.first.colorValue ?? _fallbackTrailColor;
+        renderedRuns.add(_ColorRun(color));
       }
-      _renderedPointCounts[index] = segment.length;
+
+      for (var runIndex = 0; runIndex < runs.length; runIndex++) {
+        final runPoints = runs[runIndex];
+        if (runPoints.length < 2) continue;
+
+        final renderedRun = renderedRuns[runIndex];
+        if (renderedRun.renderedPointCount == runPoints.length &&
+            renderedRun.annotation != null) {
+          continue;
+        }
+
+        final geometry = LineString(
+          coordinates: runPoints.map(_mapboxPosition).toList(),
+        );
+
+        if (renderedRun.annotation == null) {
+          renderedRun.annotation = await lineManager.create(
+            PolylineAnnotationOptions(
+              geometry: geometry,
+              lineColor: renderedRun.color,
+              // Evita que la iluminación del estilo de Mapbox oscurezca el
+              // color extraído de la portada.
+              lineEmissiveStrength: 1,
+              lineJoin: LineJoin.ROUND,
+              lineWidth: _trailLineWidth,
+            ),
+          );
+        } else {
+          renderedRun.annotation!.geometry = geometry;
+          await lineManager.update(renderedRun.annotation!);
+        }
+        renderedRun.renderedPointCount = runPoints.length;
+      }
     }
 
-    _renderedTrailColor = _trailColor;
-    _renderedTrailLineWidth = _trailLineWidth;
-
     await _centerOnNewSegment(segments);
+  }
+
+  /// Divide los puntos de un segmento en tramos que comparten el mismo
+  /// color. Cada vez que cambia la canción (y por lo tanto el color),
+  /// cerramos el tramo anterior justo en ese punto y arrancamos uno nuevo
+  /// desde ahí mismo, para que la línea se vea continua en la unión.
+  List<List<TrailPoint>> _splitPointsByColor(List<TrailPoint> points) {
+    final runs = <List<TrailPoint>>[];
+    var current = <TrailPoint>[points.first];
+    var currentColor = points.first.colorValue;
+
+    for (var i = 1; i < points.length; i++) {
+      final point = points[i];
+      if (point.colorValue != currentColor) {
+        current.add(point);
+        runs.add(current);
+        current = <TrailPoint>[point];
+        currentColor = point.colorValue;
+      } else {
+        current.add(point);
+      }
+    }
+    runs.add(current);
+    return runs;
   }
 
   Future<void> _centerOnNewSegment(List<List<TrailPoint>> segments) async {
@@ -346,4 +332,15 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
+
+/// Estado de un tramo de color dentro de un segmento del trail: guarda su
+/// anotación de Mapbox y cuántos puntos tiene dibujados hasta ahora, para
+/// saber si hace falta extender la línea o si ya está al día.
+class _ColorRun {
+  _ColorRun(this.color);
+
+  final int color;
+  PolylineAnnotation? annotation;
+  int renderedPointCount = 0;
 }
