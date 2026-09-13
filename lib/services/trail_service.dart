@@ -50,6 +50,16 @@ class TrailService extends ChangeNotifier {
     distanceFilter: 0,
   );
 
+  // Configuración del "polling inteligente" de Spotify: en vez de preguntar
+  // todo el tiempo a un ritmo fijo, programamos la próxima consulta para el
+  // momento en que la canción actual debería terminar. Esto detecta el
+  // cambio de canción casi al instante y evita saturar la API de Spotify
+  // (lo cual puede hacer que Spotify empiece a rechazar pedidos).
+  static const _songPollFallbackInterval = Duration(seconds: 6);
+  static const _songPollMinInterval = Duration(seconds: 3);
+  static const _songPollMaxInterval = Duration(seconds: 30);
+  static const _songPollBuffer = Duration(milliseconds: 1500);
+
   TrailStatus _status = TrailStatus.idle;
   StreamSubscription<Position>? _positionSubscription;
   Timer? _songTimer;
@@ -225,18 +235,22 @@ class TrailService extends ChangeNotifier {
     _positionSubscription = subscription;
   }
 
+  /// Arranca el seguimiento de canciones: consulta a Spotify ahora mismo y
+  /// programa las siguientes consultas de forma inteligente.
   void _startSongTracking() {
     _stopSongTracking();
-    _captureCurrentSong();
-    _songTimer = Timer.periodic(
-      const Duration(seconds: 4),
-      (_) => _captureCurrentSong(),
-    );
+    unawaited(_pollCurrentSong());
   }
 
   void _stopSongTracking() {
     _songTimer?.cancel();
     _songTimer = null;
+  }
+
+  void _scheduleNextSongPoll(Duration delay) {
+    _songTimer?.cancel();
+    if (!isActive) return;
+    _songTimer = Timer(delay, () => unawaited(_pollCurrentSong()));
   }
 
   /// Suma el tiempo activo transcurrido desde el último play() al total
@@ -248,35 +262,63 @@ class TrailService extends ChangeNotifier {
     _activeSince = null;
   }
 
-  Future<void> _captureCurrentSong() async {
+  /// Le pregunta a Spotify qué está sonando ahora, actualiza la canción y el
+  /// color si cambió, y programa la próxima consulta para el momento justo
+  /// en que la canción actual debería terminar (en vez de preguntar a un
+  /// ritmo fijo todo el tiempo, lo cual puede hacer que Spotify empiece a
+  /// rechazar pedidos si el trail dura mucho).
+  Future<void> _pollCurrentSong() async {
     if (!isActive) return;
 
-    // La falta momentánea de red o una sesión de Spotify vencida no debe
-    // interrumpir el registro de ubicación del trail.
     SpotifyNowPlaying? track;
     try {
       track = await SpotifyService.instance.getCurrentlyPlaying();
     } catch (_) {
+      // Problema momentáneo de red: reintentamos más adelante sin
+      // interrumpir el registro de ubicación del trail.
+      _scheduleNextSongPoll(_songPollFallbackInterval);
       return;
     }
-    if (!isActive || track == null || !track.isPlaying) return;
+
+    if (!isActive) return;
+
+    if (track == null || !track.isPlaying) {
+      _scheduleNextSongPoll(_songPollFallbackInterval);
+      return;
+    }
 
     // Si Spotify sigue en la misma canción, no la repetimos en la lista.
-    if (_songs.isNotEmpty && _songs.last.trackId == track.trackId) return;
+    if (_songs.isEmpty || _songs.last.trackId != track.trackId) {
+      _songs.add(
+        TrailSong(
+          trackId: track.trackId,
+          title: track.trackName,
+          artist: track.artistName,
+          startedAt: DateTime.now(),
+        ),
+      );
+      notifyListeners();
 
-    _songs.add(
-      TrailSong(
-        trackId: track.trackId,
-        title: track.trackName,
-        artist: track.artistName,
-        startedAt: DateTime.now(),
-      ),
-    );
-    notifyListeners();
+      // A partir de ahora, el trazado del trail toma el color de la
+      // portada de esta canción nueva, hasta que vuelva a cambiar.
+      await _updateColorForCurrentSong(track.albumArtUrl);
+    }
 
-    // A partir de ahora, el trazado del trail toma el color de la portada
-    // de esta canción nueva, hasta que vuelva a cambiar.
-    await _updateColorForCurrentSong(track.albumArtUrl);
+    _scheduleNextSongPoll(_nextPollDelayFor(track));
+  }
+
+  /// Calcula cuánto falta impide que la canción actual termine, para
+  /// preguntarle a Spotify justo en ese momento (más un pequeño margen).
+  Duration _nextPollDelayFor(SpotifyNowPlaying track) {
+    if (track.durationMs <= 0) return _songPollFallbackInterval;
+
+    final remainingMs = track.durationMs - track.progressMs;
+    if (remainingMs <= 0) return _songPollMinInterval;
+
+    final delay = Duration(milliseconds: remainingMs) + _songPollBuffer;
+    if (delay < _songPollMinInterval) return _songPollMinInterval;
+    if (delay > _songPollMaxInterval) return _songPollMaxInterval;
+    return delay;
   }
 
   /// Calcula el color dominante de la portada del álbum y lo deja

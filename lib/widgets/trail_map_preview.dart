@@ -7,8 +7,11 @@ import '../services/trail_service.dart';
 /// Mini-mapa que dibuja el trazado GPS de un trail finalizado.
 ///
 /// Escala automáticamente todos los segmentos para que quepan en el widget,
-/// con un margen interior. Si no hay puntos suficientes, muestra un
-/// placeholder con un ícono de ruta.
+/// con un margen interior. Cada tramo se pinta con el color guardado en sus
+/// puntos (el color de la canción que sonaba en ese momento); los puntos sin
+/// color guardado (trails viejos, o el instante antes de detectar la primera
+/// canción) usan [lineColor] como respaldo. Si no hay puntos suficientes,
+/// muestra un placeholder con un ícono de ruta.
 class TrailMapPreview extends StatelessWidget {
   const TrailMapPreview({
     super.key,
@@ -114,39 +117,50 @@ class _TrailPainter extends CustomPainter {
       return Offset(x, y);
     }
 
-    // 2. Pintar sombra suave de la línea
-    final shadowPaint = Paint()
-      ..color = lineColor.withValues(alpha: 0.25)
-      ..strokeWidth = lineWidth + 6
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..style = PaintingStyle.stroke;
-
-    final linePaint = Paint()
-      ..color = lineColor
-      ..strokeWidth = lineWidth
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..style = PaintingStyle.stroke;
-
+    // 2. Pintar cada segmento, partido en tramos según el color guardado
+    // en cada punto (el color de la canción que sonaba en ese momento).
     for (final segment in segments) {
       if (segment.length < 2) continue;
-      final path = Path();
-      path.moveTo(project(segment.first).dx, project(segment.first).dy);
-      for (final p in segment.skip(1)) {
-        final o = project(p);
-        path.lineTo(o.dx, o.dy);
+
+      final runs = _splitPointsByColor(segment);
+      for (final run in runs) {
+        if (run.length < 2) continue;
+
+        final runColor = _colorFor(run.first);
+
+        final shadowPaint = Paint()
+          ..color = runColor.withValues(alpha: 0.25)
+          ..strokeWidth = lineWidth + 6
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..style = PaintingStyle.stroke;
+
+        final linePaint = Paint()
+          ..color = runColor
+          ..strokeWidth = lineWidth
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..style = PaintingStyle.stroke;
+
+        final path = Path();
+        path.moveTo(project(run.first).dx, project(run.first).dy);
+        for (final p in run.skip(1)) {
+          final o = project(p);
+          path.lineTo(o.dx, o.dy);
+        }
+        canvas.drawPath(path, shadowPaint);
+        canvas.drawPath(path, linePaint);
       }
-      canvas.drawPath(path, shadowPaint);
-      canvas.drawPath(path, linePaint);
     }
 
-    // 3. Punto de inicio (círculo blanco con relleno del color del trail)
+    // 3. Punto de inicio (círculo blanco con relleno del color real de ese
+    // instante del trail).
     final firstSeg = segments.firstWhere(
       (s) => s.isNotEmpty,
       orElse: () => [],
     );
     if (firstSeg.isNotEmpty) {
+      final startColor = _colorFor(firstSeg.first);
       final startOffset = project(firstSeg.first);
       canvas.drawCircle(
         startOffset,
@@ -156,9 +170,37 @@ class _TrailPainter extends CustomPainter {
       canvas.drawCircle(
         startOffset,
         lineWidth * 1.4,
-        Paint()..color = lineColor,
+        Paint()..color = startColor,
       );
     }
+  }
+
+  /// Divide los puntos de un segmento en tramos que comparten el mismo
+  /// color, para poder pintar cada tramo con el color de la canción que
+  /// sonaba en ese momento.
+  List<List<TrailPoint>> _splitPointsByColor(List<TrailPoint> points) {
+    final runs = <List<TrailPoint>>[];
+    var current = <TrailPoint>[points.first];
+    var currentColor = points.first.colorValue;
+
+    for (var i = 1; i < points.length; i++) {
+      final point = points[i];
+      if (point.colorValue != currentColor) {
+        current.add(point);
+        runs.add(current);
+        current = <TrailPoint>[point];
+        currentColor = point.colorValue;
+      } else {
+        current.add(point);
+      }
+    }
+    runs.add(current);
+    return runs;
+  }
+
+  Color _colorFor(TrailPoint point) {
+    final value = point.colorValue;
+    return value != null ? Color(value) : lineColor;
   }
 
   @override
