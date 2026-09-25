@@ -5,7 +5,7 @@ import '../models/user_profile.dart';
 import '../services/profile_service.dart';
 import '../services/spotify_service.dart';
 import 'follow_requests_screen.dart';
-import 'login_screen.dart';
+import 'welcome_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -153,7 +153,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await Supabase.instance.client.auth.signOut();
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
         (route) => false,
       );
     }
