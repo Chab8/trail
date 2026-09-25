@@ -3,7 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import 'liquid_glass.dart';
 
-class LiquidGlassBottomBar extends StatelessWidget {
+class LiquidGlassBottomBar extends StatefulWidget {
   final int currentIndex;
   final ValueChanged<int> onItemSelected;
 
@@ -12,6 +12,13 @@ class LiquidGlassBottomBar extends StatelessWidget {
     required this.currentIndex,
     required this.onItemSelected,
   });
+
+  @override
+  State<LiquidGlassBottomBar> createState() => _LiquidGlassBottomBarState();
+}
+
+class _LiquidGlassBottomBarState extends State<LiquidGlassBottomBar> {
+  double? _draggedIndicatorLeft;
 
   static const List<_NavigationIcon> _icons = [
     _NavigationIcon(
@@ -51,44 +58,100 @@ class LiquidGlassBottomBar extends StatelessWidget {
             const indicatorHeight = 56.0;
             final itemWidth = constraints.maxWidth / _icons.length;
 
-            return Stack(
-              children: [
-                // Una sola píldora se desliza por debajo de los íconos. Así
-                // no desaparece ni reaparece al cambiar de pantalla.
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 320),
-                  curve: Curves.easeOutCubic,
-                  left: (itemWidth * currentIndex) + indicatorHorizontalInset,
-                  top: (64 - indicatorHeight) / 2,
-                  width: itemWidth - (indicatorHorizontalInset * 2),
-                  height: indicatorHeight,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.22),
-                      borderRadius: BorderRadius.circular(999),
+            return GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragStart: (details) {
+                final selectedLeft =
+                    (itemWidth * widget.currentIndex) +
+                    indicatorHorizontalInset;
+                final selectedRight =
+                    selectedLeft + itemWidth - (indicatorHorizontalInset * 2);
+                final isOnIndicator =
+                    details.localPosition.dx >= selectedLeft &&
+                    details.localPosition.dx <= selectedRight &&
+                    details.localPosition.dy >= (64 - indicatorHeight) / 2 &&
+                    details.localPosition.dy <= (64 + indicatorHeight) / 2;
+
+                if (isOnIndicator) {
+                  setState(() => _draggedIndicatorLeft = selectedLeft);
+                }
+              },
+              onHorizontalDragUpdate: (details) {
+                final draggedLeft = _draggedIndicatorLeft;
+                if (draggedLeft == null) return;
+
+                final maxLeft =
+                    constraints.maxWidth - itemWidth + indicatorHorizontalInset;
+                setState(() {
+                  _draggedIndicatorLeft = (draggedLeft + details.delta.dx)
+                      .clamp(indicatorHorizontalInset, maxLeft)
+                      .toDouble();
+                });
+              },
+              onHorizontalDragEnd: (_) {
+                final draggedLeft = _draggedIndicatorLeft;
+                if (draggedLeft == null) return;
+
+                final selectedIndex =
+                    ((draggedLeft + (itemWidth / 2)) / itemWidth).floor().clamp(
+                      0,
+                      _icons.length - 1,
+                    );
+                setState(() => _draggedIndicatorLeft = null);
+
+                if (selectedIndex != widget.currentIndex) {
+                  widget.onItemSelected(selectedIndex);
+                }
+              },
+              onHorizontalDragCancel: () {
+                if (_draggedIndicatorLeft != null) {
+                  setState(() => _draggedIndicatorLeft = null);
+                }
+              },
+              child: Stack(
+                children: [
+                  // Una sola píldora se desliza por debajo de los íconos. Así
+                  // no desaparece ni reaparece al cambiar de pantalla.
+                  AnimatedPositioned(
+                    duration: _draggedIndicatorLeft == null
+                        ? const Duration(milliseconds: 320)
+                        : Duration.zero,
+                    curve: Curves.easeOutCubic,
+                    left:
+                        _draggedIndicatorLeft ??
+                        (itemWidth * widget.currentIndex) +
+                            indicatorHorizontalInset,
+                    top: (64 - indicatorHeight) / 2,
+                    width: itemWidth - (indicatorHorizontalInset * 2),
+                    height: indicatorHeight,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
                     ),
                   ),
-                ),
-                Row(
-                  children: List.generate(_icons.length, (index) {
-                    final isSelected = index == currentIndex;
-                    return Expanded(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => onItemSelected(index),
-                        child: Center(
-                          child: SvgPicture.asset(
-                            isSelected
-                                ? _icons[index].selectedIcon
-                                : _icons[index].icon,
-                            fit: BoxFit.contain,
+                  Row(
+                    children: List.generate(_icons.length, (index) {
+                      final isSelected = index == widget.currentIndex;
+                      return Expanded(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => widget.onItemSelected(index),
+                          child: Center(
+                            child: SvgPicture.asset(
+                              isSelected
+                                  ? _icons[index].selectedIcon
+                                  : _icons[index].icon,
+                              fit: BoxFit.contain,
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  }),
-                ),
-              ],
+                      );
+                    }),
+                  ),
+                ],
+              ),
             );
           },
         ),
