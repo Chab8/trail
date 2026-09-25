@@ -47,7 +47,8 @@ class LiquidGlassBottomBar extends StatelessWidget {
         height: 64,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            const indicatorInset = 6.0;
+            const indicatorHorizontalInset = 4.0;
+            const indicatorHeight = 56.0;
             final itemWidth = constraints.maxWidth / _icons.length;
 
             return Stack(
@@ -57,13 +58,13 @@ class LiquidGlassBottomBar extends StatelessWidget {
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 320),
                   curve: Curves.easeOutCubic,
-                  left: (itemWidth * currentIndex) + indicatorInset,
-                  top: indicatorInset,
-                  width: itemWidth - (indicatorInset * 2),
-                  height: 64 - (indicatorInset * 2),
+                  left: (itemWidth * currentIndex) + indicatorHorizontalInset,
+                  top: (64 - indicatorHeight) / 2,
+                  width: itemWidth - (indicatorHorizontalInset * 2),
+                  height: indicatorHeight,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.22),
+                      color: Colors.black.withValues(alpha: 0.22),
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),

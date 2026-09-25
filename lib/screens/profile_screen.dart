@@ -13,6 +13,7 @@ import '../widgets/profile_counter.dart';
 import '../widgets/trail_detail_dialog.dart';
 import '../widgets/trail_like_button.dart';
 import '../widgets/trail_map_preview.dart';
+import '../widgets/trail_month_list.dart';
 import 'follow_list_screen.dart';
 import 'settings_screen.dart';
 
@@ -324,7 +325,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     )
                   else
-                    ..._trails.map(TrailSummaryCard.new),
+                    TrailMonthList(
+                      trails: _trails,
+                      itemBuilder: (trail) => TrailSummaryCard(trail),
+                    ),
                   if (_errorMessage != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),

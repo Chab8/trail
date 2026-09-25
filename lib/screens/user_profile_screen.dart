@@ -9,6 +9,7 @@ import '../services/follow_service.dart';
 import '../services/profile_service.dart';
 import '../services/trail_library_service.dart';
 import '../widgets/profile_counter.dart';
+import '../widgets/trail_month_list.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart' show TrailSummaryCard;
 
@@ -18,6 +19,10 @@ import 'profile_screen.dart' show TrailSummaryCard;
 /// A diferencia de "Mi perfil" (ProfileScreen), acá no se puede editar
 /// nada: solo se ve la info del usuario y hay un botón para seguirlo o
 /// dejar de seguirlo, y (si lo seguís) uno para mandarle un mensaje.
+///
+/// La estructura visual (foto a la izquierda + contadores a la derecha,
+/// nombre debajo) es intencionalmente igual a la de ProfileScreen, para
+/// que ambas pantallas se vean consistentes.
 ///
 /// La galería de trails de este usuario se muestra solo si:
 ///  - el perfil es público, o
@@ -252,25 +257,38 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
         children: [
-          Center(child: _AvatarImage(imageUrl: profile.avatarUrl)),
-          const SizedBox(height: 16),
-          Center(
-            child: Text(
-              '@${profile.username}',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
+          // Misma estructura que ProfileScreen: foto a la izquierda,
+          // contadores a la derecha en una fila.
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              ProfileCounter(label: 'Trails', value: _trails.length),
-              ProfileCounter(label: 'Followers', value: _followersCount),
-              ProfileCounter(label: 'Following', value: _followingCount),
+              _AvatarImage(imageUrl: profile.avatarUrl),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    ProfileCounter(label: 'trails', value: _trails.length),
+                    ProfileCounter(
+                      label: 'followers',
+                      value: _followersCount,
+                    ),
+                    ProfileCounter(
+                      label: 'following',
+                      value: _followingCount,
+                    ),
+                  ],
+                ),
+              ),
             ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '@${profile.username}',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           if (!_isOwnProfile) ...[
             const SizedBox(height: 32),
@@ -304,7 +322,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               ],
             ),
           ],
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
           const Text(
             'Trails',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
@@ -363,13 +381,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       );
     }
 
-    return Column(
-      children: _trails
-          .map(
-            (trail) =>
-                TrailSummaryCard(trail, isOwnProfile: _isOwnProfile),
-          )
-          .toList(),
+    return TrailMonthList(
+      trails: _trails,
+      itemBuilder: (trail) =>
+          TrailSummaryCard(trail, isOwnProfile: _isOwnProfile),
     );
   }
 }
