@@ -57,6 +57,36 @@ class _LiquidGlassBottomBarState extends State<LiquidGlassBottomBar> {
             const indicatorHorizontalInset = 4.0;
             const indicatorHeight = 56.0;
             final itemWidth = constraints.maxWidth / _icons.length;
+            final indicatorLeft =
+                _draggedIndicatorLeft ??
+                (itemWidth * widget.currentIndex) + indicatorHorizontalInset;
+            final indicatorTop = (64 - indicatorHeight) / 2;
+
+            Widget buildIconRow({
+              required bool selected,
+              bool interactive = false,
+            }) {
+              return Row(
+                children: List.generate(_icons.length, (index) {
+                  return Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: interactive
+                          ? () => widget.onItemSelected(index)
+                          : null,
+                      child: Center(
+                        child: SvgPicture.asset(
+                          selected
+                              ? _icons[index].selectedIcon
+                              : _icons[index].icon,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              );
+            }
 
             return GestureDetector(
               behavior: HitTestBehavior.translucent,
@@ -117,11 +147,8 @@ class _LiquidGlassBottomBarState extends State<LiquidGlassBottomBar> {
                         ? const Duration(milliseconds: 320)
                         : Duration.zero,
                     curve: Curves.easeOutCubic,
-                    left:
-                        _draggedIndicatorLeft ??
-                        (itemWidth * widget.currentIndex) +
-                            indicatorHorizontalInset,
-                    top: (64 - indicatorHeight) / 2,
+                    left: indicatorLeft,
+                    top: indicatorTop,
                     width: itemWidth - (indicatorHorizontalInset * 2),
                     height: indicatorHeight,
                     child: DecoratedBox(
@@ -131,24 +158,35 @@ class _LiquidGlassBottomBarState extends State<LiquidGlassBottomBar> {
                       ),
                     ),
                   ),
-                  Row(
-                    children: List.generate(_icons.length, (index) {
-                      final isSelected = index == widget.currentIndex;
-                      return Expanded(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => widget.onItemSelected(index),
-                          child: Center(
-                            child: SvgPicture.asset(
-                              isSelected
-                                  ? _icons[index].selectedIcon
-                                  : _icons[index].icon,
-                              fit: BoxFit.contain,
+                  buildIconRow(selected: false, interactive: true),
+                  // Las versiones violetas se dibujan por encima de todos los
+                  // íconos, pero el recorte de la píldora solo deja ver la
+                  // parte que ésta cubre en cada instante.
+                  Positioned(
+                    left: indicatorLeft,
+                    top: indicatorTop,
+                    width: itemWidth - (indicatorHorizontalInset * 2),
+                    height: indicatorHeight,
+                    child: IgnorePointer(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: OverflowBox(
+                          alignment: Alignment.topLeft,
+                          minWidth: constraints.maxWidth,
+                          maxWidth: constraints.maxWidth,
+                          minHeight: 64,
+                          maxHeight: 64,
+                          child: Transform.translate(
+                            offset: Offset(-indicatorLeft, -indicatorTop),
+                            child: SizedBox(
+                              width: constraints.maxWidth,
+                              height: 64,
+                              child: buildIconRow(selected: true),
                             ),
                           ),
                         ),
-                      );
-                    }),
+                      ),
+                    ),
                   ),
                 ],
               ),
