@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/completed_trail.dart';
 import 'trail_like_button.dart';
@@ -16,16 +17,17 @@ const _colorMain = Color(0xFFFEFEFE);
 /// Gris para subtítulos, estadísticas y separadores.
 const _colorSub = Color(0xFF9C9C9C);
 
-/// Ancho de los separadores de sección.
-const _dividerWidth = 248.0;
 
 /// Detalle expandido de un trail: nombre, mapa, estadísticas (duración,
 /// distancia, cantidad de tracks) y el artista más escuchado.
-class TrailDetailDialog extends StatelessWidget {
+///
+/// Es un [StatefulWidget] para manejar el modo de edición.
+class TrailDetailDialog extends StatefulWidget {
   const TrailDetailDialog({
     super.key,
     required this.trail,
     this.isOwnTrail = true,
+    this.onDeleted,
   });
 
   final CompletedTrail trail;
@@ -34,11 +36,15 @@ class TrailDetailDialog extends StatelessWidget {
   /// solo el dueño del trail puede editarlo.
   final bool isOwnTrail;
 
+  /// Callback invocado cuando el trail es eliminado exitosamente.
+  final VoidCallback? onDeleted;
+
   static Future<void> show(
     BuildContext context,
     CompletedTrail trail, {
     Alignment origin = Alignment.center,
     bool isOwnTrail = true,
+    VoidCallback? onDeleted,
   }) {
     return showGeneralDialog<void>(
       context: context,
@@ -46,8 +52,11 @@ class TrailDetailDialog extends StatelessWidget {
       barrierLabel: 'Trail Detail',
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 380),
-      pageBuilder: (_, _, _) =>
-          TrailDetailDialog(trail: trail, isOwnTrail: isOwnTrail),
+      pageBuilder: (_, _, _) => TrailDetailDialog(
+        trail: trail,
+        isOwnTrail: isOwnTrail,
+        onDeleted: onDeleted,
+      ),
       transitionBuilder: (ctx, animation, _, child) {
         final curved = CurvedAnimation(
           parent: animation,
@@ -68,6 +77,66 @@ class TrailDetailDialog extends StatelessWidget {
   }
 
   @override
+  State<TrailDetailDialog> createState() => _TrailDetailDialogState();
+}
+
+class _TrailDetailDialogState extends State<TrailDetailDialog> {
+  bool _isEditing = false;
+  bool _isDeleting = false;
+
+  Future<void> _deleteTrail() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1F),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          '¿Eliminar trail?',
+          style: TextStyle(color: _colorMain, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'Se eliminará "${widget.trail.name}" permanentemente. Esta acción no se puede deshacer.',
+          style: const TextStyle(color: _colorSub, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar', style: TextStyle(color: _colorSub)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Eliminar',
+              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    setState(() => _isDeleting = true);
+    try {
+      await Supabase.instance.client
+          .from('trails')
+          .delete()
+          .eq('id', widget.trail.id);
+
+      if (!mounted) return;
+      widget.onDeleted?.call();
+      Navigator.of(context).pop();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isDeleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error al eliminar el trail')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -76,163 +145,217 @@ class TrailDetailDialog extends StatelessWidget {
         borderRadius: BorderRadius.circular(26),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            decoration: BoxDecoration(
-              // #09080B al 60 % de opacidad
-              color: const Color(0x9909080B),
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.08),
-                width: 1,
+          child: SizedBox(
+            width: 350,
+            height: 340,
+            child: Container(
+              clipBehavior: Clip.hardEdge,
+              decoration: BoxDecoration(
+                color: const Color(0x9909080B),
+                borderRadius: BorderRadius.circular(26),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  width: 1,
+                ),
               ),
-            ),
-            child: Stack(
-              children: [
-                // ── Contenido principal ───────────────────────────────────
-                SingleChildScrollView(
-                  child: Padding(
-                    // Padding superior alto para dejar espacio a los iconos de esquina
-                    padding: const EdgeInsets.fromLTRB(20, 52, 20, 24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Nombre del trail
-                        Text(
-                          trail.name,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: _colorMain,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
+              child: Stack(
+                children: [
+                  // ── Contenido principal (sin scroll, tamaño fijo 320px) ──
+                  Positioned.fill(
+                    child: Padding(
+                      // Top 61 = alto de la barra de botones
+                      padding: const EdgeInsets.fromLTRB(20, 61, 20, 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // ── Mapa centrado ──────────────────────────────
+                          SizedBox(
+                            width: 116,
+                            height: 80,
+                            child: TrailMapPreview(
+                              segments: widget.trail.segments,
+                              height: 80,
+                              backgroundColor: Colors.transparent,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        // ── Mapa 116 × 86 sin fondo + likes a la derecha ──
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            SizedBox(
-                              width: 116,
-                              height: 86,
-                              child: TrailMapPreview(
-                                segments: trail.segments,
-                                height: 86,
-                                backgroundColor: Colors.transparent,
-                              ),
+                          const SizedBox(height: 4),
+
+                          // ── Public (izq) y Likes (der) en 248px alineados con el divisor ──
+                          SizedBox(
+                            width: 248,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                // Public con icono violeta
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SvgPicture.asset(
+                                      'assets/icons/public.svg',
+                                      width: 14,
+                                      height: 14,
+                                      colorFilter: const ColorFilter.mode(
+                                        _accentColor,
+                                        BlendMode.srcIn,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 5),
+                                    const Text(
+                                      'Public',
+                                      style: TextStyle(
+                                        color: _colorSub,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                // Likes alineados al extremo derecho del divisor
+                                TrailLikeButton(trailId: widget.trail.id),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            TrailLikeButton(trailId: trail.id),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        // Separador
-                        Container(
-                          width: _dividerWidth,
-                          height: 1,
-                          color: _colorSub,
-                        ),
-                        const SizedBox(height: 14),
-                        // ── Sección "Destacada" ────────────────────────────
-                        const _SectionHeader(label: 'Destacada'),
-                        const SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _StatChip(
-                              iconPath: 'assets/icons/clock.svg',
-                              label: _formatDuration(trail.duration),
-                            ),
-                            const SizedBox(width: 24),
-                            _StatChip(
-                              iconPath: 'assets/icons/steps.svg',
-                              label: _formatDistance(trail.distanceMeters),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        _StatChip(
-                          iconPath: 'assets/icons/music_note.svg',
-                          label: '${trail.songs.length} tracks',
-                        ),
-                        const SizedBox(height: 16),
-                        // Separador
-                        Container(
-                          width: _dividerWidth,
-                          height: 1,
-                          color: _colorSub,
-                        ),
-                        const SizedBox(height: 14),
-                        // ── Sección artista: nombre como encabezado ────────
-                        _SectionHeader(label: trail.topArtist ?? 'Sin datos'),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Genre',
-                          style: TextStyle(color: _colorSub, fontSize: 13),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatDate(trail.completedAt),
-                          style: const TextStyle(
+                          ),
+                          const SizedBox(height: 3),
+
+                          // ── Línea separadora superior (248px) ────────────────────
+                          Container(
+                            width: 248,
+                            height: 1,
                             color: _colorSub,
-                            fontSize: 12,
+                          ),
+                          const SizedBox(height: 8),
+
+                          // ── Sección "Destacada" ───────────────────────────
+                          const _SectionHeader(label: 'Destacada'),
+                          const SizedBox(height: 5),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _StatChip(
+                                iconPath: 'assets/icons/clock.svg',
+                                label: _formatDuration(widget.trail.duration),
+                              ),
+                              const SizedBox(width: 24),
+                              _StatChip(
+                                iconPath: 'assets/icons/steps.svg',
+                                label: _formatDistance(widget.trail.distanceMeters),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          _StatChip(
+                            iconPath: 'assets/icons/music_note.svg',
+                            label: '${widget.trail.songs.length} tracks',
+                          ),
+                          const SizedBox(height: 8),
+
+                          // ── Línea separadora inferior (248px) ───────────────────
+                          Container(
+                            width: 248,
+                            height: 1,
+                            color: _colorSub,
+                          ),
+                          const SizedBox(height: 6),
+
+                          // ── Sección artista ───────────────────────────────
+                          _SectionHeader(label: widget.trail.topArtist ?? 'Sin datos'),
+                          const SizedBox(height: 3),
+                          const Text(
+                            'Genre',
+                            style: TextStyle(color: _colorSub, fontSize: 13),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _formatDate(widget.trail.completedAt),
+                            style: const TextStyle(
+                              color: _colorSub,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // ── Barra superior: botón izq | título | botón der ───────
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 61,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const SizedBox(width: 10),
+
+                        // Botón izquierdo: Delete (modo edición) o Exit
+                        if (_isEditing)
+                          GestureDetector(
+                            onTap: _isDeleting ? null : _deleteTrail,
+                            behavior: HitTestBehavior.opaque,
+                            child: _isDeleting
+                                ? const SizedBox(
+                                    width: 39,
+                                    height: 39,
+                                    child: Center(
+                                      child: SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: _colorSub,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : _ButtonSvg('assets/buttons/delete button.svg'),
+                          )
+                        else
+                          GestureDetector(
+                            onTap: () => Navigator.of(context).pop(),
+                            behavior: HitTestBehavior.opaque,
+                            child: _ButtonSvg('assets/buttons/exit button.svg'),
+                          ),
+
+                        // Título centrado entre los dos botones
+                        Expanded(
+                          child: Text(
+                            widget.trail.name,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: _colorMain,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
+
+                        // Botón derecho: Done (modo edición) o Edit (solo propio)
+                        if (widget.isOwnTrail)
+                          if (_isEditing)
+                            GestureDetector(
+                              onTap: () => setState(() => _isEditing = false),
+                              behavior: HitTestBehavior.opaque,
+                              child: _ButtonSvg('assets/buttons/done button.svg'),
+                            )
+                          else
+                            GestureDetector(
+                              onTap: () => setState(() => _isEditing = true),
+                              behavior: HitTestBehavior.opaque,
+                              child: _ButtonSvg('assets/buttons/edit button.svg'),
+                            )
+                        else
+                          // Espacio equivalente para mantener el título centrado
+                          const SizedBox(width: 39),
+
+                        const SizedBox(width: 10),
                       ],
                     ),
                   ),
-                ),
-
-                // ── Botón cerrar — esquina superior izquierda ─────────────
-                Positioned(
-                  top: 14,
-                  left: 14,
-                  child: GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(6),
-                      child: SvgPicture.asset(
-                        'assets/icons/exit_cross.svg',
-                        width: 14,
-                        height: 14,
-                        colorFilter: const ColorFilter.mode(
-                          _colorSub,
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // ── Botón editar — esquina superior derecha ───────────────
-                // Solo se muestra en tus propios trails; en el perfil de
-                // otro usuario no tiene sentido poder editarlo.
-                if (isOwnTrail)
-                  Positioned(
-                    top: 14,
-                    right: 14,
-                    child: GestureDetector(
-                      // TODO: implementar la edición del trail más adelante.
-                      onTap: () {},
-                      behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: const EdgeInsets.all(6),
-                        child: SvgPicture.asset(
-                          'assets/icons/edit.svg',
-                          width: 14,
-                          height: 14,
-                          colorFilter: const ColorFilter.mode(
-                            _colorSub,
-                            BlendMode.srcIn,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -318,4 +441,37 @@ String _formatDate(DateTime date) {
     'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
   ];
   return '${months[date.month - 1]}. ${date.day} ${date.year}';
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// Botón SVG de 39×39 a partir de un SVG nativo de 119×119.
+//
+// Los SVG de los botones tienen viewBox 119×119, pero el círculo visible tiene
+// r=19.5 (diámetro 39px). Se renderiza el SVG a 119×119 y se recorta una
+// ventana de 39×39 centrada en el círculo (cx=59.5, cy=51.5).
+// Ajuste Y: 59.5-51.5=8px → normalizado -8/((119-39)/2) ≈ -0.2
+// ─────────────────────────────────────────────────────────────────────────────
+class _ButtonSvg extends StatelessWidget {
+  const _ButtonSvg(this.assetPath);
+
+  final String assetPath;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: SizedBox(
+        width: 39,
+        height: 39,
+        child: OverflowBox(
+          maxWidth: 119,
+          maxHeight: 119,
+          alignment: const Alignment(0.0, -0.2),
+          child: SvgPicture.asset(
+            assetPath,
+            width: 119,
+            height: 119,
+          ),
+        ),
+      ),
+    );
+  }
 }
