@@ -82,10 +82,35 @@ class TrailLibraryService extends ChangeNotifier {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw StateError('No hay una sesión iniciada.');
 
-    final result =
-        await _client.from('trails').select().eq('user_id', userId).count();
+    final result = await _client
+        .from('trails')
+        .select()
+        .eq('user_id', userId)
+        .count();
 
     return 'Trail #${result.count + 1}';
+  }
+
+  /// Elimina un trail propio y notifica a las pantallas que muestran la
+  /// biblioteca. El `select` posterior permite detectar reglas RLS que no
+  /// hayan eliminado ninguna fila, en vez de cerrar el diálogo como si la
+  /// operación hubiese sido exitosa.
+  Future<void> deleteTrail(String trailId) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw StateError('No hay una sesión iniciada.');
+
+    final deleted = await _client
+        .from('trails')
+        .delete()
+        .eq('id', trailId)
+        .eq('user_id', userId)
+        .select('id');
+
+    if (deleted.isEmpty) {
+      throw StateError('No se pudo eliminar el trail.');
+    }
+
+    notifyListeners();
   }
 
   Future<void> addTrail({
@@ -149,8 +174,9 @@ class TrailLibraryService extends ChangeNotifier {
       final rows = <Map<String, dynamic>>[];
       for (var i = 0; i < sorted.length; i++) {
         final song = sorted[i];
-        final segmentEnd =
-            i + 1 < sorted.length ? sorted[i + 1].startedAt : now;
+        final segmentEnd = i + 1 < sorted.length
+            ? sorted[i + 1].startedAt
+            : now;
         rows.add({
           'trail_id': trailId,
           'track_id': song.trackId,

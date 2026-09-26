@@ -38,19 +38,29 @@ class CompletedTrail {
   /// El artista al que más minutos le dedicaste durante este trail, o
   /// null si no hay datos suficientes para calcularlo.
   String? get topArtist {
-    final totals = _artistListeningTotals();
+    final totals = _listeningTotalsBy((song) => song.artist);
     if (totals.isEmpty) return null;
     return totals.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
   }
 
+  /// Tiempo de escucha acumulado por track de Spotify. Se usa para ponderar
+  /// los géneros de un trail según cuánto tiempo sonó cada canción.
+  Map<String, Duration> get trackListeningTotals =>
+      _listeningTotalsBy((song) => song.trackId);
+
   /// Suma, por artista, cuánto tiempo estuvo sonando durante los tramos
   /// en los que el trail estuvo efectivamente grabando (sin contar pausas).
-  Map<String, Duration> _artistListeningTotals() {
+  Map<String, Duration> _listeningTotalsBy(
+    String Function(TrailSong song) groupBy,
+  ) {
     if (songs.isEmpty || segments.isEmpty) return {};
 
     final activeSpans = segments
         .where((segment) => segment.length >= 2)
-        .map((segment) => _TimeSpan(segment.first.recordedAt, segment.last.recordedAt))
+        .map(
+          (segment) =>
+              _TimeSpan(segment.first.recordedAt, segment.last.recordedAt),
+        )
         .toList();
     if (activeSpans.isEmpty) return {};
 
@@ -58,6 +68,9 @@ class CompletedTrail {
     final totals = <String, Duration>{};
 
     for (var i = 0; i < songs.length; i++) {
+      final key = groupBy(songs[i]);
+      if (key.isEmpty) continue;
+
       final start = songs[i].startedAt;
       final end = i + 1 < songs.length ? songs[i + 1].startedAt : trailEnd;
       if (!end.isAfter(start)) continue;
@@ -66,11 +79,7 @@ class CompletedTrail {
       for (final active in activeSpans) {
         final overlap = songSpan.overlapWith(active);
         if (overlap == null) continue;
-        totals.update(
-          songs[i].artist,
-          (value) => value + overlap,
-          ifAbsent: () => overlap,
-        );
+        totals.update(key, (value) => value + overlap, ifAbsent: () => overlap);
       }
     }
     return totals;
@@ -111,26 +120,26 @@ class CompletedTrail {
   }
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'name': name,
-        'songs': songs.map((s) => s.toMap()).toList(),
-        'created_at': completedAt.toIso8601String(),
-        'duration_seconds': duration.inSeconds,
-        'distance_meters': distanceMeters,
-        'segments': segments
-            .map(
-              (segment) => segment
-                  .map(
-                    (p) => {
-                      'lat': p.latitude,
-                      'lon': p.longitude,
-                      'ts': p.recordedAt.millisecondsSinceEpoch,
-                    },
-                  )
-                  .toList(),
-            )
-            .toList(),
-      };
+    'id': id,
+    'name': name,
+    'songs': songs.map((s) => s.toMap()).toList(),
+    'created_at': completedAt.toIso8601String(),
+    'duration_seconds': duration.inSeconds,
+    'distance_meters': distanceMeters,
+    'segments': segments
+        .map(
+          (segment) => segment
+              .map(
+                (p) => {
+                  'lat': p.latitude,
+                  'lon': p.longitude,
+                  'ts': p.recordedAt.millisecondsSinceEpoch,
+                },
+              )
+              .toList(),
+        )
+        .toList(),
+  };
 }
 
 /// Representa un intervalo de tiempo, usado para calcular cuánto se

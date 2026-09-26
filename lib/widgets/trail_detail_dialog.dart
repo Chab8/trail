@@ -2,9 +2,10 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/completed_trail.dart';
+import '../services/spotify_service.dart';
+import '../services/trail_library_service.dart';
 import 'trail_like_button.dart';
 import 'trail_map_preview.dart';
 
@@ -84,6 +85,7 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
   bool _isDeleting = false;
   bool _isTopExpanded = false;
   int _selectedSongIndex = 0;
+  String? _topGenre;
 
   bool get _hasSongs => widget.trail.songs.isNotEmpty;
 
@@ -108,6 +110,19 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
       return;
     }
     setState(() => _selectedSongIndex++);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTopGenre();
+  }
+
+  Future<void> _loadTopGenre() async {
+    final genre = await SpotifyService.instance.getMostListenedGenre(
+      widget.trail,
+    );
+    if (mounted) setState(() => _topGenre = genre);
   }
 
   Future<void> _deleteTrail() async {
@@ -148,10 +163,7 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
 
     setState(() => _isDeleting = true);
     try {
-      await Supabase.instance.client
-          .from('trails')
-          .delete()
-          .eq('id', widget.trail.id);
+      await TrailLibraryService.instance.deleteTrail(widget.trail.id);
 
       if (!mounted) return;
       widget.onDeleted?.call();
@@ -174,11 +186,9 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
         borderRadius: BorderRadius.circular(26),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 260),
-            curve: Curves.easeOutCubic,
+          child: SizedBox(
             width: 350,
-            height: _isTopExpanded ? 500 : 340,
+            height: 340,
             child: Container(
               clipBehavior: Clip.hardEdge,
               decoration: BoxDecoration(
@@ -391,7 +401,10 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
         const SizedBox(height: 6),
         _SectionHeader(label: widget.trail.topArtist ?? 'Sin datos'),
         const SizedBox(height: 3),
-        const Text('Genre', style: TextStyle(color: _colorSub, fontSize: 13)),
+        Text(
+          _topGenre ?? 'Sin datos',
+          style: const TextStyle(color: _colorSub, fontSize: 13),
+        ),
         const SizedBox(height: 2),
         Text(
           _formatDate(widget.trail.completedAt),
@@ -414,7 +427,7 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
             backgroundColor: Colors.transparent,
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 12),
         Row(
           children: [
             _SongArrowButton(
@@ -449,7 +462,7 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
           '0:00-0:00',
           style: TextStyle(color: _colorSub, fontSize: 15),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 10),
         GestureDetector(
           onTap: () {},
           behavior: HitTestBehavior.opaque,

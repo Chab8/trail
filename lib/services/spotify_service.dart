@@ -9,6 +9,8 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/completed_trail.dart';
+
 /// Se encarga de conectar la cuenta de Spotify del usuario, guardar sus
 /// tokens de forma segura (tabla spotify_connections) y consultar qué
 /// está escuchando en este momento.
@@ -64,7 +66,10 @@ class SpotifyService {
       'state': state,
     });
 
-    final opened = await launchUrl(authUri, mode: LaunchMode.externalApplication);
+    final opened = await launchUrl(
+      authUri,
+      mode: LaunchMode.externalApplication,
+    );
     if (!opened) {
       _pendingCompleter = null;
       return false;
@@ -141,7 +146,8 @@ class SpotifyService {
         headers: {'Authorization': 'Bearer $accessToken'},
       );
       if (me.statusCode == 200) {
-        spotifyId = (jsonDecode(me.body) as Map<String, dynamic>)['id'] as String?;
+        spotifyId =
+            (jsonDecode(me.body) as Map<String, dynamic>)['id'] as String?;
       }
     } catch (_) {
       // No es grave si esto falla, igual guardamos los tokens.
@@ -158,7 +164,10 @@ class SpotifyService {
     });
 
     if (spotifyId != null) {
-      await _client.from('profiles').update({'spotify_id': spotifyId}).eq('id', userId);
+      await _client
+          .from('profiles')
+          .update({'spotify_id': spotifyId})
+          .eq('id', userId);
     }
   }
 
@@ -167,7 +176,10 @@ class SpotifyService {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
     await _client.from('spotify_connections').delete().eq('user_id', userId);
-    await _client.from('profiles').update({'spotify_id': null}).eq('id', userId);
+    await _client
+        .from('profiles')
+        .update({'spotify_id': null})
+        .eq('id', userId);
   }
 
   /// True si el usuario actual tiene Spotify conectado.
@@ -195,8 +207,9 @@ class SpotifyService {
     if (row == null) return null;
 
     final expiresAt = DateTime.parse(row['token_expires_at'] as String);
-    final stillValid =
-        expiresAt.isAfter(DateTime.now().toUtc().add(const Duration(seconds: 30)));
+    final stillValid = expiresAt.isAfter(
+      DateTime.now().toUtc().add(const Duration(seconds: 30)),
+    );
 
     if (stillValid) {
       return row['access_token'] as String;
@@ -205,7 +218,10 @@ class SpotifyService {
     return _refreshAccessToken(row['refresh_token'] as String, userId);
   }
 
-  Future<String?> _refreshAccessToken(String refreshToken, String userId) async {
+  Future<String?> _refreshAccessToken(
+    String refreshToken,
+    String userId,
+  ) async {
     final response = await http.post(
       Uri.parse('https://accounts.spotify.com/api/token'),
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -228,12 +244,15 @@ class SpotifyService {
     final expiresIn = data['expires_in'] as int;
     final expiresAt = DateTime.now().toUtc().add(Duration(seconds: expiresIn));
 
-    await _client.from('spotify_connections').update({
-      'access_token': newAccessToken,
-      'refresh_token': newRefreshToken,
-      'token_expires_at': expiresAt.toIso8601String(),
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('user_id', userId);
+    await _client
+        .from('spotify_connections')
+        .update({
+          'access_token': newAccessToken,
+          'refresh_token': newRefreshToken,
+          'token_expires_at': expiresAt.toIso8601String(),
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('user_id', userId);
 
     return newAccessToken;
   }
@@ -278,11 +297,121 @@ class SpotifyService {
     );
   }
 
+  /// Devuelve el género que más tiempo sonó durante [trail]. Los tracks y los
+  /// artistas se consultan en lote para no hacer una petición por canción.
+  /// Si Spotify no está conectado, no clasifica algún artista o falla la
+  /// consulta, devuelve `null` para que la interfaz muestre "Sin datos".
+  Future<String?> getMostListenedGenre(CompletedTrail trail) async {
+    final token = await _getValidAccessToken();
+    if (token == null) return null;
+
+    final trackTotals = trail.trackListeningTotals;
+    if (trackTotals.isEmpty) return null;
+
+    try {
+      final trackArtistIds = await _getPrimaryArtistIds(
+        trackTotals.keys.toList(growable: false),
+        token,
+      );
+      final artistIds = trackArtistIds.values.toSet().toList(growable: false);
+      if (artistIds.isEmpty) return null;
+
+      final artistGenres = await _getArtistGenres(artistIds, token);
+      final genreTotals = <String, Duration>{};
+
+      for (final entry in trackTotals.entries) {
+        final artistId = trackArtistIds[entry.key];
+        if (artistId == null) continue;
+
+        for (final genre in artistGenres[artistId] ?? const <String>[]) {
+          genreTotals.update(
+            genre,
+            (duration) => duration + entry.value,
+            ifAbsent: () => entry.value,
+          );
+        }
+      }
+
+      if (genreTotals.isEmpty) return null;
+      return genreTotals.entries
+          .reduce((a, b) => a.value >= b.value ? a : b)
+          .key;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Map<String, String>> _getPrimaryArtistIds(
+    List<String> trackIds,
+    String token,
+  ) async {
+    final result = <String, String>{};
+
+    for (final ids in _chunksOf50(trackIds)) {
+      final response = await http.get(
+        Uri.https('api.spotify.com', '/v1/tracks', {'ids': ids.join(',')}),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode != 200) continue;
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final tracks = data['tracks'] as List<dynamic>? ?? [];
+      for (final track in tracks.whereType<Map<String, dynamic>>()) {
+        final trackId = track['id'] as String?;
+        final artists = track['artists'] as List<dynamic>? ?? [];
+        final primaryArtist = artists.isNotEmpty
+            ? artists.first as Map<String, dynamic>?
+            : null;
+        final artistId = primaryArtist?['id'] as String?;
+        if (trackId != null && artistId != null) result[trackId] = artistId;
+      }
+    }
+
+    return result;
+  }
+
+  Future<Map<String, List<String>>> _getArtistGenres(
+    List<String> artistIds,
+    String token,
+  ) async {
+    final result = <String, List<String>>{};
+
+    for (final ids in _chunksOf50(artistIds)) {
+      final response = await http.get(
+        Uri.https('api.spotify.com', '/v1/artists', {'ids': ids.join(',')}),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode != 200) continue;
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final artists = data['artists'] as List<dynamic>? ?? [];
+      for (final artist in artists.whereType<Map<String, dynamic>>()) {
+        final artistId = artist['id'] as String?;
+        final genres = (artist['genres'] as List<dynamic>? ?? [])
+            .whereType<String>()
+            .toList(growable: false);
+        if (artistId != null && genres.isNotEmpty) result[artistId] = genres;
+      }
+    }
+
+    return result;
+  }
+
+  Iterable<List<String>> _chunksOf50(List<String> values) sync* {
+    for (var index = 0; index < values.length; index += 50) {
+      final end = index + 50 < values.length ? index + 50 : values.length;
+      yield values.sublist(index, end);
+    }
+  }
+
   String _generateRandomString(int length) {
     const chars =
         'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     final random = Random.secure();
-    return List.generate(length, (_) => chars[random.nextInt(chars.length)]).join();
+    return List.generate(
+      length,
+      (_) => chars[random.nextInt(chars.length)],
+    ).join();
   }
 
   String _codeChallengeFromVerifier(String verifier) {
