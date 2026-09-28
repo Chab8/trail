@@ -253,20 +253,37 @@ class _ChatScreenState extends State<ChatScreen>
 
     return Scaffold(
       appBar: AppBar(
+        leadingWidth: 55,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: GestureDetector(
+            onTap: () => Navigator.of(context).maybePop(),
+            behavior: HitTestBehavior.opaque,
+            child: const _BackButtonSvg(),
+          ),
+        ),
         titleSpacing: 0,
         title: InkWell(
           onTap: _openOtherProfile,
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: const Color(0xFF3A3A3A),
-                backgroundImage: hasAvatar
-                    ? NetworkImage(widget.otherAvatarUrl!)
-                    : null,
-                child: hasAvatar
-                    ? null
-                    : const Icon(Icons.person, size: 18, color: Colors.white70),
+              SizedBox(
+                width: 39,
+                height: 39,
+                child: CircleAvatar(
+                  radius: 19.5,
+                  backgroundColor: const Color(0xFF3A3A3A),
+                  backgroundImage: hasAvatar
+                      ? NetworkImage(widget.otherAvatarUrl!)
+                      : null,
+                  child: hasAvatar
+                      ? null
+                      : const Icon(
+                          Icons.person,
+                          size: 18,
+                          color: Colors.white70,
+                        ),
+                ),
               ),
               const SizedBox(width: 10),
               Flexible(
@@ -394,21 +411,24 @@ class _ChatScreenState extends State<ChatScreen>
                         borderRadius: BorderRadius.circular(17),
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 14),
-                      child: TextField(
-                        controller: _textController,
-                        minLines: 1,
-                        maxLines: 1,
-                        textAlignVertical: TextAlignVertical.center,
-                        textCapitalization: TextCapitalization.sentences,
-                        style: const TextStyle(
-                          color: Color(0xFFFEFEFE),
-                          fontSize: 14,
+                      child: Center(
+                        child: TextField(
+                          controller: _textController,
+                          minLines: 1,
+                          maxLines: 1,
+                          textAlignVertical: TextAlignVertical.center,
+                          textCapitalization: TextCapitalization.sentences,
+                          style: const TextStyle(
+                            color: Color(0xFFFEFEFE),
+                            fontSize: 14,
+                          ),
+                          decoration: const InputDecoration(
+                            isCollapsed: true,
+                            contentPadding: EdgeInsets.zero,
+                            border: InputBorder.none,
+                          ),
+                          onSubmitted: (_) => _send(),
                         ),
-                        decoration: const InputDecoration(
-                          isCollapsed: true,
-                          border: InputBorder.none,
-                        ),
-                        onSubmitted: (_) => _send(),
                       ),
                     ),
                   ),
@@ -468,6 +488,17 @@ class _ChatActionButton extends StatelessWidget {
   final String assetPath;
   final VoidCallback? onTap;
 
+  double get _assetWidth {
+    switch (assetPath) {
+      case 'assets/buttons/send button.svg':
+        return 93;
+      case 'assets/buttons/microphone button.svg':
+        return 88;
+      default:
+        return 113;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -478,13 +509,43 @@ class _ChatActionButton extends StatelessWidget {
           width: 33,
           height: 33,
           child: OverflowBox(
-            maxWidth: 113,
+            maxWidth: _assetWidth,
             maxHeight: 103,
             alignment: Alignment.topLeft,
             child: Transform.translate(
               offset: const Offset(-40, -32),
-              child: SvgPicture.asset(assetPath, width: 113, height: 103),
+              child: SvgPicture.asset(
+                assetPath,
+                width: _assetWidth,
+                height: 103,
+              ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// El SVG incluye el espacio de su sombra; se recorta el círculo central a
+/// un botón de 39×39 px.
+class _BackButtonSvg extends StatelessWidget {
+  const _BackButtonSvg();
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: SizedBox(
+        width: 39,
+        height: 39,
+        child: OverflowBox(
+          maxWidth: 119,
+          maxHeight: 119,
+          alignment: const Alignment(0, -0.2),
+          child: SvgPicture.asset(
+            'assets/buttons/back button.svg',
+            width: 119,
+            height: 119,
           ),
         ),
       ),
