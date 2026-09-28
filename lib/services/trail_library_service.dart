@@ -18,25 +18,43 @@ class TrailLibraryService extends ChangeNotifier {
         .from('trails')
         .select(
           'id, title, started_at, ended_at, distance_m, duration_seconds, gps_segments, '
-          'trail_segments(track_id, track_name, artist, started_at)',
+          'trail_segments(track_id, track_name, artist, started_at, ended_at)',
         )
         .eq('user_id', userId)
         .order('created_at', ascending: false);
 
     return data.map<CompletedTrail>((row) {
+      final trailStartedAt = DateTime.parse(row['started_at'] as String);
+      final duration = Duration(
+        seconds: (row['duration_seconds'] as num?)?.toInt() ?? 0,
+      );
       final rawSegmentsSongs = row['trail_segments'] as List<dynamic>? ?? [];
-      final songs = rawSegmentsSongs
-          .whereType<Map<String, dynamic>>()
-          .where((s) => (s['track_id'] as String? ?? '').isNotEmpty)
-          .map(
-            (s) => TrailSong(
-              trackId: s['track_id'] as String? ?? '',
-              title: s['track_name'] as String? ?? '',
-              artist: s['artist'] as String? ?? '',
-              startedAt: DateTime.parse(s['started_at'] as String),
-            ),
-          )
-          .toList();
+      final songs =
+          rawSegmentsSongs
+              .whereType<Map<String, dynamic>>()
+              .where((s) => (s['track_id'] as String? ?? '').isNotEmpty)
+              .map(
+                (s) => TrailSong(
+                  trackId: s['track_id'] as String? ?? '',
+                  title: s['track_name'] as String? ?? '',
+                  artist: s['artist'] as String? ?? '',
+                  startedAt: DateTime.parse(s['started_at'] as String),
+                  trailStartOffset: _offsetFromTrailStart(
+                    DateTime.parse(s['started_at'] as String),
+                    trailStartedAt,
+                    duration,
+                  ),
+                  trailEndOffset: s['ended_at'] == null
+                      ? null
+                      : _offsetFromTrailStart(
+                          DateTime.parse(s['ended_at'] as String),
+                          trailStartedAt,
+                          duration,
+                        ),
+                ),
+              )
+              .toList()
+            ..sort((a, b) => a.trailStartOffset.compareTo(b.trailStartOffset));
 
       final completedAtRaw = row['ended_at'] ?? row['started_at'];
 
@@ -69,13 +87,21 @@ class TrailLibraryService extends ChangeNotifier {
         name: row['title'] as String? ?? 'Trail',
         songs: songs,
         completedAt: DateTime.parse(completedAtRaw as String),
-        duration: Duration(
-          seconds: (row['duration_seconds'] as num?)?.toInt() ?? 0,
-        ),
+        duration: duration,
         distanceMeters: (row['distance_m'] as num?)?.toDouble() ?? 0,
         segments: gpsSegments,
       );
     }).toList();
+  }
+
+  Duration _offsetFromTrailStart(
+    DateTime timestamp,
+    DateTime trailStartedAt,
+    Duration duration,
+  ) {
+    final offset = timestamp.difference(trailStartedAt);
+    if (offset.isNegative) return Duration.zero;
+    return offset > duration ? duration : offset;
   }
 
   Future<String> getNextDefaultName() async {
@@ -169,21 +195,22 @@ class TrailLibraryService extends ChangeNotifier {
 
     if (songs.isNotEmpty) {
       final sorted = [...songs]
-        ..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+        ..sort((a, b) => a.trailStartOffset.compareTo(b.trailStartOffset));
 
       final rows = <Map<String, dynamic>>[];
       for (var i = 0; i < sorted.length; i++) {
         final song = sorted[i];
-        final segmentEnd = i + 1 < sorted.length
-            ? sorted[i + 1].startedAt
-            : now;
+        final endOffset = song.trailEndOffset ?? duration;
         rows.add({
           'trail_id': trailId,
           'track_id': song.trackId,
           'track_name': song.title,
           'artist': song.artist,
-          'started_at': song.startedAt.toUtc().toIso8601String(),
-          'ended_at': segmentEnd.toUtc().toIso8601String(),
+          'started_at': tripStart
+              .add(song.trailStartOffset)
+              .toUtc()
+              .toIso8601String(),
+          'ended_at': tripStart.add(endOffset).toUtc().toIso8601String(),
         });
       }
       await _client.from('trail_segments').insert(rows);

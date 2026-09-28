@@ -53,6 +53,22 @@ class CompletedTrail {
   Map<String, Duration> _listeningTotalsBy(
     String Function(TrailSong song) groupBy,
   ) {
+    if (_hasSavedSongOffsets) {
+      final totals = <String, Duration>{};
+      for (var i = 0; i < songs.length; i++) {
+        final key = groupBy(songs[i]);
+        final start = songStartOffsetAt(i);
+        final end = songEndOffsetAt(i);
+        if (key.isEmpty || end <= start) continue;
+        totals.update(
+          key,
+          (value) => value + (end - start),
+          ifAbsent: () => end - start,
+        );
+      }
+      return totals;
+    }
+
     if (songs.isEmpty || segments.isEmpty) return {};
 
     final activeSpans = segments
@@ -83,6 +99,29 @@ class CompletedTrail {
       }
     }
     return totals;
+  }
+
+  bool get _hasSavedSongOffsets => songs.any(
+    (song) =>
+        song.trailStartOffset != Duration.zero || song.trailEndOffset != null,
+  );
+
+  /// Inicio de la canción [index] en el reloj activo del trail.
+  Duration songStartOffsetAt(int index) =>
+      _clampOffset(songs[index].trailStartOffset);
+
+  /// Final de la canción [index]. Para trails guardados antes de este campo,
+  /// usamos el inicio de la siguiente canción o el fin del trail.
+  Duration songEndOffsetAt(int index) {
+    final explicitEnd = songs[index].trailEndOffset;
+    if (explicitEnd != null) return _clampOffset(explicitEnd);
+    if (index + 1 < songs.length) return songStartOffsetAt(index + 1);
+    return duration;
+  }
+
+  Duration _clampOffset(Duration offset) {
+    if (offset.isNegative) return Duration.zero;
+    return offset > duration ? duration : offset;
   }
 
   factory CompletedTrail.fromMap(Map<String, dynamic> map) {

@@ -205,9 +205,7 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
                   Positioned.fill(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 61, 20, 8),
-                      child: _isTopExpanded
-                          ? _buildExpandedTopContent()
-                          : _buildCollapsedContent(),
+                      child: _buildAnimatedContent(),
                     ),
                   ),
 
@@ -320,56 +318,106 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
     );
   }
 
-  Widget _buildCollapsedContent() {
+  Widget _buildAnimatedContent() {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: _isTopExpanded ? 1 : 0),
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeInOutCubic,
+      builder: (context, progress, _) {
+        final mapWidth = lerpDouble(116, 236, progress)!;
+        final mapHeight = lerpDouble(80, 164, progress)!;
+        final collapsedOpacity = 1 - _transitionProgress(progress, 0, 0.35);
+        final expandedOpacity = _transitionProgress(progress, 0.5, 1);
+        final expandedTop = lerpDouble(84, 176, progress)!;
+
+        return Stack(
+          children: [
+            Align(
+              alignment: Alignment.topCenter,
+              child: GestureDetector(
+                onTap: _isTopExpanded ? null : _expandTopSection,
+                behavior: HitTestBehavior.translucent,
+                child: SizedBox(
+                  width: mapWidth,
+                  height: mapHeight,
+                  child: TrailMapPreview(
+                    segments: widget.trail.segments,
+                    height: mapHeight,
+                    backgroundColor: Colors.transparent,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 84,
+              left: 0,
+              right: 0,
+              child: IgnorePointer(
+                ignoring: collapsedOpacity < 0.95,
+                child: Opacity(
+                  opacity: collapsedOpacity,
+                  child: _buildCollapsedLowerContent(),
+                ),
+              ),
+            ),
+            Positioned(
+              top: expandedTop,
+              left: 0,
+              right: 0,
+              child: IgnorePointer(
+                ignoring: expandedOpacity < 0.95,
+                child: Opacity(
+                  opacity: expandedOpacity,
+                  child: _buildExpandedTrackContent(),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  double _transitionProgress(double value, double start, double end) {
+    final normalized = ((value - start) / (end - start)).clamp(0.0, 1.0);
+    return Curves.easeInOut.transform(normalized);
+  }
+
+  Widget _buildCollapsedLowerContent() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Al tocar cualquiera de los elementos de esta sección se expande.
         GestureDetector(
           onTap: _expandTopSection,
           behavior: HitTestBehavior.translucent,
-          child: Column(
-            children: [
-              SizedBox(
-                width: 116,
-                height: 80,
-                child: TrailMapPreview(
-                  segments: widget.trail.segments,
-                  height: 80,
-                  backgroundColor: Colors.transparent,
-                ),
-              ),
-              const SizedBox(height: 4),
-              SizedBox(
-                width: 248,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: SizedBox(
+            width: 248,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SvgPicture.asset(
-                          'assets/icons/public.svg',
-                          width: 14,
-                          height: 14,
-                          colorFilter: const ColorFilter.mode(
-                            _accentColor,
-                            BlendMode.srcIn,
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        const Text(
-                          'Public',
-                          style: TextStyle(color: _colorSub, fontSize: 12),
-                        ),
-                      ],
+                    SvgPicture.asset(
+                      'assets/icons/public.svg',
+                      width: 14,
+                      height: 14,
+                      colorFilter: const ColorFilter.mode(
+                        _accentColor,
+                        BlendMode.srcIn,
+                      ),
                     ),
-                    TrailLikeButton(trailId: widget.trail.id),
+                    const SizedBox(width: 5),
+                    const Text(
+                      'Public',
+                      style: TextStyle(color: _colorSub, fontSize: 12),
+                    ),
                   ],
                 ),
-              ),
-            ],
+                TrailLikeButton(trailId: widget.trail.id),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 3),
@@ -414,20 +462,10 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
     );
   }
 
-  Widget _buildExpandedTopContent() {
+  Widget _buildExpandedTrackContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        SizedBox(
-          width: 236,
-          height: 164,
-          child: TrailMapPreview(
-            segments: widget.trail.segments,
-            height: 164,
-            backgroundColor: Colors.transparent,
-          ),
-        ),
-        const SizedBox(height: 12),
         Row(
           children: [
             _SongArrowButton(
@@ -458,8 +496,8 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
           ],
         ),
         const SizedBox(height: 5),
-        const Text(
-          '0:00-0:00',
+        Text(
+          _selectedSongTimeRange,
           style: TextStyle(color: _colorSub, fontSize: 15),
         ),
         const SizedBox(height: 10),
@@ -485,6 +523,14 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
         ),
       ],
     );
+  }
+
+  String get _selectedSongTimeRange {
+    if (!_hasSongs) return '00:00-00:00';
+
+    final start = widget.trail.songStartOffsetAt(_selectedSongIndex);
+    final end = widget.trail.songEndOffsetAt(_selectedSongIndex);
+    return '${_formatTrackOffset(start)}-${_formatTrackOffset(end)}';
   }
 }
 
@@ -585,6 +631,13 @@ String _formatDuration(Duration duration) => '${duration.inMinutes}min';
 
 String _formatDistance(double meters) =>
     '${(meters / 1000).toStringAsFixed(2)}km';
+
+String _formatTrackOffset(Duration offset) {
+  final totalSeconds = offset.inSeconds;
+  final minutes = totalSeconds ~/ 60;
+  final seconds = totalSeconds % 60;
+  return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+}
 
 String _formatDate(DateTime date) {
   const months = [

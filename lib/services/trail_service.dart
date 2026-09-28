@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show Color;
 
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
@@ -57,7 +56,7 @@ class TrailService extends ChangeNotifier {
   // (lo cual puede hacer que Spotify empiece a rechazar pedidos).
   static const _songPollFallbackInterval = Duration(seconds: 6);
   static const _songPollMinInterval = Duration(seconds: 3);
-  static const _songPollMaxInterval = Duration(seconds: 30);
+  static const _songPollMaxInterval = Duration(seconds: 3);
   static const _songPollBuffer = Duration(milliseconds: 1500);
 
   TrailStatus _status = TrailStatus.idle;
@@ -77,6 +76,7 @@ class TrailService extends ChangeNotifier {
   /// actualiza cada vez que detectamos un cambio de canción, calculando el
   /// color dominante de la portada del álbum.
   int? _currentPointColor;
+  Duration? _expectedCurrentSongEndOffset;
 
   TrailStatus get status => _status;
 
@@ -142,6 +142,7 @@ class TrailService extends ChangeNotifier {
         _accumulatedDuration = Duration.zero;
         _accumulatedDistanceMeters = 0;
         _currentPointColor = null;
+        _expectedCurrentSongEndOffset = null;
       }
       _segments.add([_trailPointFrom(position)]);
       _status = TrailStatus.active;
@@ -174,6 +175,7 @@ class TrailService extends ChangeNotifier {
   Future<void> pause() async {
     if (_status != TrailStatus.active) return;
 
+    _finishCurrentSongAt(elapsedDuration);
     _pauseStopwatch();
     _status = TrailStatus.paused;
     final subscription = _positionSubscription;
@@ -187,6 +189,7 @@ class TrailService extends ChangeNotifier {
   Future<void> stop() async {
     if (_status == TrailStatus.idle && !_isStarting) return;
 
+    _finishCurrentSongAt(elapsedDuration);
     _pauseStopwatch();
     ++_startRequestId;
     _isStarting = false;
@@ -287,16 +290,24 @@ class TrailService extends ChangeNotifier {
       return;
     }
 
-    // Si Spotify sigue en la misma canción, no la repetimos en la lista.
-    if (_songs.isEmpty || _songs.last.trackId != track.trackId) {
+    // La canción se divide también al pausar y retomar, para que los tiempos
+    // guardados representen únicamente el tiempo activo del trail.
+    if (_songs.isEmpty ||
+        _songs.last.trackId != track.trackId ||
+        _songs.last.trailEndOffset != null) {
+      final currentOffset = elapsedDuration;
+      final startOffset = _startOffsetForNewSong(currentOffset);
+      _finishCurrentSongAt(startOffset);
       _songs.add(
         TrailSong(
           trackId: track.trackId,
           title: track.trackName,
           artist: track.artistName,
           startedAt: DateTime.now(),
+          trailStartOffset: startOffset,
         ),
       );
+      _expectedCurrentSongEndOffset = _expectedEndOffset(track, currentOffset);
       notifyListeners();
 
       // A partir de ahora, el trazado del trail toma el color de la
@@ -305,6 +316,47 @@ class TrailService extends ChangeNotifier {
     }
 
     _scheduleNextSongPoll(_nextPollDelayFor(track));
+  }
+
+  /// Si Spotify reporta el cambio justo después del fin calculado de la
+  /// canción anterior, usamos ese fin previsto: evita que el margen de red
+  /// desplace el rango mostrado. Los saltos manuales conservan el instante
+  /// real en que fueron detectados.
+  Duration _startOffsetForNewSong(Duration currentOffset) {
+    if (_songs.isEmpty) return Duration.zero;
+
+    final expectedEnd = _expectedCurrentSongEndOffset;
+    if (expectedEnd == null || currentOffset < expectedEnd) {
+      return currentOffset;
+    }
+
+    final delay = currentOffset - expectedEnd;
+    return delay <= const Duration(seconds: 3) ? expectedEnd : currentOffset;
+  }
+
+  Duration? _expectedEndOffset(
+    SpotifyNowPlaying track,
+    Duration currentOffset,
+  ) {
+    if (track.durationMs <= 0) return null;
+    final remainingMs = track.durationMs - track.progressMs;
+    if (remainingMs <= 0) return currentOffset;
+    return currentOffset + Duration(milliseconds: remainingMs);
+  }
+
+  void _finishCurrentSongAt(Duration endOffset) {
+    if (_songs.isEmpty) return;
+
+    final lastIndex = _songs.length - 1;
+    final current = _songs[lastIndex];
+    if (current.trailEndOffset != null) return;
+
+    _songs[lastIndex] = current.copyWith(
+      trailEndOffset: endOffset < current.trailStartOffset
+          ? current.trailStartOffset
+          : endOffset,
+    );
+    _expectedCurrentSongEndOffset = null;
   }
 
   /// Calcula cuánto falta impide que la canción actual termine, para
