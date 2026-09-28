@@ -259,9 +259,15 @@ class _ChatScreenState extends State<ChatScreen>
           child: GestureDetector(
             onTap: () => Navigator.of(context).maybePop(),
             behavior: HitTestBehavior.opaque,
-            child: const _BackButtonSvg(),
+            child: const _HeaderButtonSvg('assets/buttons/back button.svg'),
           ),
         ),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 8),
+            child: _HeaderButtonSvg('assets/buttons/call button.svg'),
+          ),
+        ],
         titleSpacing: 0,
         title: InkWell(
           onTap: _openOtherProfile,
@@ -529,8 +535,13 @@ class _ChatActionButton extends StatelessWidget {
 
 /// El SVG incluye el espacio de su sombra; se recorta el círculo central a
 /// un botón de 39×39 px.
-class _BackButtonSvg extends StatelessWidget {
-  const _BackButtonSvg();
+class _HeaderButtonSvg extends StatelessWidget {
+  const _HeaderButtonSvg(this.assetPath);
+
+  final String assetPath;
+
+  double get _assetWidth =>
+      assetPath == 'assets/buttons/call button.svg' ? 99 : 119;
 
   @override
   Widget build(BuildContext context) {
@@ -539,13 +550,12 @@ class _BackButtonSvg extends StatelessWidget {
         width: 39,
         height: 39,
         child: OverflowBox(
-          maxWidth: 119,
+          maxWidth: _assetWidth,
           maxHeight: 119,
-          alignment: const Alignment(0, -0.2),
-          child: SvgPicture.asset(
-            'assets/buttons/back button.svg',
-            width: 119,
-            height: 119,
+          alignment: Alignment.topLeft,
+          child: Transform.translate(
+            offset: const Offset(-40, -32),
+            child: SvgPicture.asset(assetPath, width: _assetWidth, height: 119),
           ),
         ),
       ),

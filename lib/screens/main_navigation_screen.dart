@@ -31,13 +31,30 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     });
   }
 
+  void _handleHorizontalDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity.abs() < 250) return;
+
+    final nextIndex = velocity < 0 ? _currentIndex + 1 : _currentIndex - 1;
+    if (nextIndex < 0 || nextIndex >= _screens.length) return;
+
+    _onItemSelected(nextIndex);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       // extendBody: true hace que el mapa/contenido se vea "detrás"
       // de la barra flotante, para el efecto liquid glass.
       extendBody: true,
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: _currentIndex == 0
+          // El mapa reserva los gestos horizontales para navegarlo.
+          ? IndexedStack(index: _currentIndex, children: _screens)
+          : GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragEnd: _handleHorizontalDragEnd,
+              child: IndexedStack(index: _currentIndex, children: _screens),
+            ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
