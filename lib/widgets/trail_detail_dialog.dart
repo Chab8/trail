@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../models/completed_trail.dart';
 import '../services/spotify_service.dart';
 import '../services/trail_library_service.dart';
+import '../services/trail_visibility_service.dart';
 import 'trail_like_button.dart';
 import 'trail_map_preview.dart';
 
@@ -85,6 +86,7 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
   bool _isDeleting = false;
   bool _isTopExpanded = false;
   int _selectedSongIndex = 0;
+  final Set<int> _hiddenSongIndexes = <int>{};
   String? _topGenre;
 
   bool get _hasSongs => widget.trail.songs.isNotEmpty;
@@ -92,6 +94,38 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
   String get _selectedSongTitle => _hasSongs
       ? widget.trail.songs[_selectedSongIndex].title
       : 'Sin canciones';
+
+  bool get _isSelectedSongVisible =>
+      !_hiddenSongIndexes.contains(_selectedSongIndex);
+
+  TrailActiveTimeRange? get _selectedSongRange =>
+      _songRangeFor(_selectedSongIndex);
+
+  List<TrailActiveTimeRange> get _hiddenSongRanges => _hiddenSongIndexes
+      .map(_songRangeFor)
+      .whereType<TrailActiveTimeRange>()
+      .toList(growable: false);
+
+  TrailActiveTimeRange? _songRangeFor(int index) {
+    if (index < 0 || index >= widget.trail.songs.length) return null;
+
+    final start = widget.trail.songStartOffsetAt(index);
+    final end = widget.trail.songEndOffsetAt(index);
+    return end > start ? TrailActiveTimeRange(start: start, end: end) : null;
+  }
+
+  Future<void> _toggleSelectedSongVisibility() async {
+    if (!_hasSongs) return;
+    setState(() {
+      if (!_hiddenSongIndexes.add(_selectedSongIndex)) {
+        _hiddenSongIndexes.remove(_selectedSongIndex);
+      }
+    });
+    await TrailVisibilityService.instance.saveHiddenSongIndexes(
+      widget.trail.id,
+      _hiddenSongIndexes,
+    );
+  }
 
   void _expandTopSection() {
     setState(() {
@@ -116,6 +150,15 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
   void initState() {
     super.initState();
     _loadTopGenre();
+    _loadHiddenSongs();
+  }
+
+  Future<void> _loadHiddenSongs() async {
+    final hidden = await TrailVisibilityService.instance.getHiddenSongIndexes(
+      widget.trail.id,
+    );
+    if (!mounted) return;
+    setState(() => _hiddenSongIndexes.addAll(hidden));
   }
 
   Future<void> _loadTopGenre() async {
@@ -344,6 +387,10 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
                     segments: widget.trail.segments,
                     height: mapHeight,
                     backgroundColor: Colors.transparent,
+                    highlightedRange: _isTopExpanded && _isSelectedSongVisible
+                        ? _selectedSongRange
+                        : null,
+                    hiddenRanges: _hiddenSongRanges,
                   ),
                 ),
               ),
@@ -474,16 +521,40 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
               onTap: _showPreviousSong,
             ),
             Expanded(
-              child: Text(
-                _selectedSongTitle,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: _colorMain,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: _toggleSelectedSongVisibility,
+                    behavior: HitTestBehavior.opaque,
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: Center(
+                        child: SvgPicture.asset(
+                          _isSelectedSongVisible
+                              ? 'assets/icons/view icon.svg'
+                              : 'assets/icons/hide view icon.svg',
+                          height: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Flexible(
+                    child: Text(
+                      _selectedSongTitle,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _colorMain,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             _SongArrowButton(
