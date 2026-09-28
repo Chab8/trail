@@ -49,8 +49,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (resolved == null) {
           setState(
-            () => _errorMessage =
-                'Wrong username or password, try again',
+            () => _errorMessage = 'Wrong username or password, try again',
           );
           return;
         }
@@ -98,10 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
         controller: controller,
         obscureText: obscureText,
         keyboardType: keyboardType,
-        style: const TextStyle(
-          fontSize: 15,
-          color: Color(0xFFFEFEFE),
-        ),
+        style: const TextStyle(fontSize: 15, color: Color(0xFFFEFEFE)),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: const TextStyle(
@@ -111,8 +107,10 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           filled: true,
           fillColor: const Color(0xFF5B5A5F).withOpacity(0.5),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 18, vertical: 0),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 0,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(999),
             borderSide: BorderSide.none,
@@ -232,29 +230,43 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _login,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF654CDD),
+                        backgroundColor: Colors.transparent,
+                        disabledBackgroundColor: Colors.transparent,
                         elevation: 0,
+                        padding: EdgeInsets.zero,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(999),
                         ),
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Color(0xFFFEFEFE),
-                              ),
-                            )
-                          : const Text(
-                              'Login',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFFFEFEFE),
-                              ),
-                            ),
+                      child: Ink(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Color(0xFF7635FF), Color(0xFF4227C3)],
+                          ),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Center(
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFFFEFEFE),
+                                  ),
+                                )
+                              : const Text(
+                                  'Login',
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFFFEFEFE),
+                                  ),
+                                ),
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -262,8 +274,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Don't have an account?
                   GestureDetector(
                     onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                          builder: (_) => const RegisterScreen()),
+                      MaterialPageRoute(builder: (_) => const RegisterScreen()),
                     ),
                     child: RichText(
                       text: const TextSpan(

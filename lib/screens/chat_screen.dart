@@ -252,126 +252,172 @@ class _ChatScreenState extends State<ChatScreen>
         widget.otherAvatarUrl != null && widget.otherAvatarUrl!.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(
-        leadingWidth: 55,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 8),
-          child: GestureDetector(
-            onTap: () => Navigator.of(context).maybePop(),
-            behavior: HitTestBehavior.opaque,
-            child: const _HeaderButtonSvg('assets/buttons/back button.svg'),
-          ),
-        ),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 8),
-            child: _HeaderButtonSvg('assets/buttons/call button.svg'),
-          ),
-        ],
-        titleSpacing: 0,
-        title: InkWell(
-          onTap: _openOtherProfile,
-          child: Row(
-            children: [
-              SizedBox(
-                width: 39,
-                height: 39,
-                child: CircleAvatar(
-                  radius: 19.5,
-                  backgroundColor: const Color(0xFF3A3A3A),
-                  backgroundImage: hasAvatar
-                      ? NetworkImage(widget.otherAvatarUrl!)
-                      : null,
-                  child: hasAvatar
-                      ? null
-                      : const Icon(
-                          Icons.person,
-                          size: 18,
-                          color: Colors.white70,
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: _messagesStream,
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final messages = snapshot.data!
+                          .map((row) => ChatMessage.fromMap(row))
+                          .toList();
+
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!_didInitialScroll && messages.isNotEmpty) {
+                          _didInitialScroll = true;
+                          _scrollToBottomNow(animate: false);
+                        } else if (_scrollController.hasClients &&
+                            _scrollController.position.pixels >=
+                                _scrollController.position.maxScrollExtent -
+                                    80) {
+                          _scrollToBottomNow();
+                        }
+
+                        final hasUnreadFromOther = messages.any(
+                          (m) => m.senderId != _myId && m.readAt == null,
+                        );
+                        if (hasUnreadFromOther) {
+                          _chatService.markConversationRead(
+                            widget.conversationId,
+                          );
+                        }
+                      });
+
+                      if (messages.isEmpty) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(24.0),
+                            child: Text(
+                              'Todavía no hay mensajes. ¡Decí hola!',
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
                         ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Text(
-                  '@${widget.otherUsername}',
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: StreamBuilder<List<Map<String, dynamic>>>(
-                stream: _messagesStream,
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  final messages = snapshot.data!
-                      .map((row) => ChatMessage.fromMap(row))
-                      .toList();
-
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (!_didInitialScroll && messages.isNotEmpty) {
-                      _didInitialScroll = true;
-                      _scrollToBottomNow(animate: false);
-                    } else if (_scrollController.hasClients &&
-                        _scrollController.position.pixels >=
-                            _scrollController.position.maxScrollExtent - 80) {
-                      _scrollToBottomNow();
-                    }
-
-                    final hasUnreadFromOther = messages.any(
-                      (m) => m.senderId != _myId && m.readAt == null,
-                    );
-                    if (hasUnreadFromOther) {
-                      _chatService.markConversationRead(widget.conversationId);
-                    }
-                  });
-
-                  if (messages.isEmpty) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(24.0),
-                        child: Text(
-                          'Todavía no hay mensajes. ¡Decí hola!',
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    );
-                  }
-
-                  return ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final message = messages[index];
-                      final isMine = message.senderId == _myId;
-                      return _MessageBubble(
-                        message: message,
-                        isMine: isMine,
-                        onLongPress: isMine
-                            ? () => _handleMessageLongPress(message)
-                            : null,
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final message = messages[index];
+                          final isMine = message.senderId == _myId;
+                          return _MessageBubble(
+                            message: message,
+                            isMine: isMine,
+                            onLongPress: isMine
+                                ? () => _handleMessageLongPress(message)
+                                : null,
+                          );
+                        },
                       );
                     },
-                  );
-                },
+                  ),
+                ),
+                _buildComposer(),
+              ],
+            ),
+          ),
+          // Cabecera sobre el contenido: comienza en el borde superior de la
+          // pantalla y deja los controles del AppBar visibles por encima.
+          const IgnorePointer(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                width: double.infinity,
+                height: 144,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xFF09080B), Color(0x0009080B)],
+                    ),
+                  ),
+                ),
               ),
             ),
-            _buildComposer(),
-          ],
-        ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: SizedBox(
+                height: kToolbarHeight,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 55,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: GestureDetector(
+                            onTap: () => Navigator.of(context).maybePop(),
+                            behavior: HitTestBehavior.opaque,
+                            child: const _HeaderButtonSvg(
+                              'assets/buttons/back button.svg',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: InkWell(
+                        onTap: _openOtherProfile,
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 39,
+                              height: 39,
+                              child: CircleAvatar(
+                                radius: 19.5,
+                                backgroundColor: const Color(0xFF3A3A3A),
+                                backgroundImage: hasAvatar
+                                    ? NetworkImage(widget.otherAvatarUrl!)
+                                    : null,
+                                child: hasAvatar
+                                    ? null
+                                    : const Icon(
+                                        Icons.person,
+                                        size: 18,
+                                        color: Colors.white70,
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Flexible(
+                              child: Text(
+                                '@${widget.otherUsername}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.only(right: 16),
+                      child: _HeaderButtonSvg('assets/buttons/call button.svg'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -603,7 +649,7 @@ class _MessageBubble extends StatelessWidget {
             ),
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(message.content, style: TextStyle(color: textColor)),

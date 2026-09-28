@@ -16,6 +16,7 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
+  late final PageController _pageController;
 
   // Orden: 0 Mapa, 1 Mensajes, 2 Badges, 3 Perfil
   final List<Widget> _screens = const [
@@ -25,20 +26,33 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     ProfileTabScreen(),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   void _onItemSelected(int index) {
+    if (index == _currentIndex) return;
     setState(() {
       _currentIndex = index;
     });
+
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
   }
 
-  void _handleHorizontalDragEnd(DragEndDetails details) {
-    final velocity = details.primaryVelocity ?? 0;
-    if (velocity.abs() < 250) return;
-
-    final nextIndex = velocity < 0 ? _currentIndex + 1 : _currentIndex - 1;
-    if (nextIndex < 0 || nextIndex >= _screens.length) return;
-
-    _onItemSelected(nextIndex);
+  void _onPageChanged(int index) {
+    if (index != _currentIndex) setState(() => _currentIndex = index);
   }
 
   @override
@@ -47,14 +61,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       // extendBody: true hace que el mapa/contenido se vea "detrás"
       // de la barra flotante, para el efecto liquid glass.
       extendBody: true,
-      body: _currentIndex == 0
-          // El mapa reserva los gestos horizontales para navegarlo.
-          ? IndexedStack(index: _currentIndex, children: _screens)
-          : GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragEnd: _handleHorizontalDragEnd,
-              child: IndexedStack(index: _currentIndex, children: _screens),
-            ),
+      body: PageView(
+        controller: _pageController,
+        // El mapa reserva sus gestos horizontales. Desde cualquier otra
+        // pestaña se puede arrastrar y ver la pantalla vecina en tiempo real.
+        physics: _currentIndex == 0
+            ? const NeverScrollableScrollPhysics()
+            : const PageScrollPhysics(),
+        onPageChanged: _onPageChanged,
+        children: _screens
+            .map((screen) => _KeepAlivePage(child: screen))
+            .toList(),
+      ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
@@ -74,5 +92,28 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         ),
       ),
     );
+  }
+}
+
+/// Evita reinicializar las pestañas —en especial el mapa— al quedar fuera de
+/// la zona visible del PageView.
+class _KeepAlivePage extends StatefulWidget {
+  const _KeepAlivePage({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

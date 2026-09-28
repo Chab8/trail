@@ -53,13 +53,42 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     });
   }
 
+  Widget _buildPrimaryAuthButton({
+    required VoidCallback? onPressed,
+    required Widget child,
+  }) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.transparent,
+        disabledBackgroundColor: Colors.transparent,
+        elevation: 0,
+        padding: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      ),
+      child: Ink(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF7635FF), Color(0xFF4227C3)],
+          ),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Center(child: child),
+      ),
+    );
+  }
+
   // ── Login logic (unchanged from original LoginScreen) ────────────────────
   Future<void> _login() async {
     final identifier = _loginIdCtrl.text.trim();
     final password = _loginPwCtrl.text.trim();
 
     if (identifier.isEmpty || password.isEmpty) {
-      setState(() => _loginError = 'Completá tu email o usuario, y la contraseña.');
+      setState(
+        () => _loginError = 'Completá tu email o usuario, y la contraseña.',
+      );
       return;
     }
     setState(() {
@@ -77,7 +106,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           params: {'p_username': identifier},
         );
         if (resolved == null) {
-          setState(() => _loginError = 'No encontramos ninguna cuenta con ese nombre de usuario.');
+          setState(
+            () => _loginError =
+                'No encontramos ninguna cuenta con ese nombre de usuario.',
+          );
           return;
         }
         email = resolved as String;
@@ -107,7 +139,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     final password = _regPwCtrl.text.trim();
 
     if (username.length < 3) {
-      setState(() => _regError = 'El nombre de usuario debe tener al menos 3 caracteres.');
+      setState(
+        () => _regError =
+            'El nombre de usuario debe tener al menos 3 caracteres.',
+      );
       return;
     }
     if (email.isEmpty || password.isEmpty) {
@@ -122,7 +157,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     try {
       final taken = await _profileService.isUsernameTaken(username);
       if (taken) {
-        setState(() => _regError = 'Ese nombre de usuario ya está en uso. Probá con otro.');
+        setState(
+          () => _regError =
+              'Ese nombre de usuario ya está en uso. Probá con otro.',
+        );
         return;
       }
       final authResponse = await Supabase.instance.client.auth.signUp(
@@ -135,12 +173,20 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         return;
       }
       try {
-        await _profileService.createProfile(userId: user.id, username: username);
+        await _profileService.createProfile(
+          userId: user.id,
+          username: username,
+        );
       } on PostgrestException catch (e) {
         if (e.code == '23505') {
-          setState(() => _regError = 'Ese nombre de usuario ya está en uso. Probá con otro (tu cuenta de email/contraseña ya quedó creada).');
+          setState(
+            () => _regError = 'Ese nombre de usuario ya está en uso. Probá con otro (tu cuenta de email/contraseña ya quedó creada).',
+          );
         } else {
-          setState(() => _regError = 'La cuenta se creó, pero falló el perfil: ${e.message}');
+          setState(
+            () => _regError =
+                'La cuenta se creó, pero falló el perfil: ${e.message}',
+          );
         }
         return;
       }
@@ -183,7 +229,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           ),
           filled: true,
           fillColor: const Color(0xFF5B5A5F).withOpacity(0.5),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 0),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 0,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(999),
             borderSide: BorderSide.none,
@@ -332,7 +381,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       width: 293,
                       child: Text(
                         _loginError!,
-                        style: const TextStyle(fontSize: 11, color: Colors.redAccent),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.redAccent,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -343,21 +395,16 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   SizedBox(
                     width: 293,
                     height: 44,
-                    child: ElevatedButton(
+                    child: _buildPrimaryAuthButton(
                       onPressed: _loginLoading ? null : _login,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF654CDD),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
                       child: _loginLoading
                           ? const SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Color(0xFFFEFEFE)),
+                                strokeWidth: 2,
+                                color: Color(0xFFFEFEFE),
+                              ),
                             )
                           : const Text(
                               'Login',
@@ -541,7 +588,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       width: 293,
                       child: Text(
                         _regError!,
-                        style: const TextStyle(fontSize: 11, color: Colors.redAccent),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.redAccent,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -552,21 +602,16 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   SizedBox(
                     width: 293,
                     height: 44,
-                    child: ElevatedButton(
+                    child: _buildPrimaryAuthButton(
                       onPressed: _regLoading ? null : _register,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF654CDD),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
                       child: _regLoading
                           ? const SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Color(0xFFFEFEFE)),
+                                strokeWidth: 2,
+                                color: Color(0xFFFEFEFE),
+                              ),
                             )
                           : const Text(
                               'Sign Up',

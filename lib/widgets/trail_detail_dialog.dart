@@ -183,7 +183,7 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 90),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(29.5),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: SizedBox(
@@ -193,7 +193,7 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
               clipBehavior: Clip.hardEdge,
               decoration: BoxDecoration(
                 color: const Color(0x9909080B),
-                borderRadius: BorderRadius.circular(26),
+                borderRadius: BorderRadius.circular(29.5),
                 border: Border.all(
                   color: Colors.white.withValues(alpha: 0.08),
                   width: 1,
