@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/chat_message.dart';
@@ -27,28 +28,46 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen>
+    with SingleTickerProviderStateMixin {
   final _chatService = ChatService();
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
+  late final AnimationController _composerController;
 
   late final Stream<List<Map<String, dynamic>>> _messagesStream;
   bool _isSending = false;
   bool _didInitialScroll = false;
 
   String? get _myId => Supabase.instance.client.auth.currentUser?.id;
+  bool get _hasDraft => _textController.text.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
     _messagesStream = _chatService.watchMessages(widget.conversationId);
     _chatService.markConversationRead(widget.conversationId);
+    _composerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    )..addListener(() => setState(() {}));
+    _textController.addListener(_onDraftChanged);
+  }
+
+  void _onDraftChanged() {
+    if (_hasDraft) {
+      _composerController.forward();
+    } else {
+      _composerController.reverse();
+    }
+    setState(() {});
   }
 
   @override
   void dispose() {
     _textController.dispose();
     _scrollController.dispose();
+    _composerController.dispose();
     super.dispose();
   }
 
@@ -120,7 +139,10 @@ class _ChatScreenState extends State<ChatScreen> {
               onTap: () => Navigator.of(sheetContext).pop('edit'),
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              leading: const Icon(
+                Icons.delete_outline,
+                color: Colors.redAccent,
+              ),
               title: const Text(
                 'Eliminar mensaje',
                 style: TextStyle(color: Colors.redAccent),
@@ -239,8 +261,9 @@ class _ChatScreenState extends State<ChatScreen> {
               CircleAvatar(
                 radius: 18,
                 backgroundColor: const Color(0xFF3A3A3A),
-                backgroundImage:
-                    hasAvatar ? NetworkImage(widget.otherAvatarUrl!) : null,
+                backgroundImage: hasAvatar
+                    ? NetworkImage(widget.otherAvatarUrl!)
+                    : null,
                 child: hasAvatar
                     ? null
                     : const Icon(Icons.person, size: 18, color: Colors.white70),
@@ -333,50 +356,137 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildComposer() {
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        12,
+        16,
         8,
-        12,
-        MediaQuery.viewInsetsOf(context).bottom > 0 ? 8 : 12,
+        16,
+        MediaQuery.viewInsetsOf(context).bottom > 0 ? 8 : 16,
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _textController,
-              minLines: 1,
-              maxLines: 4,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(
-                hintText: 'Escribí un mensaje...',
-                filled: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const actionSize = 33.0;
+          const gap = 10.0;
+          const hiddenActionsWidth = (actionSize + gap) * 2;
+          final collapsedInputWidth = (constraints.maxWidth - 129)
+              .clamp(0.0, 220.0)
+              .toDouble();
+          final groupWidth = collapsedInputWidth + 129;
+          final progress = Curves.easeInOut.transform(
+            _composerController.value,
+          );
+          final inputWidth =
+              collapsedInputWidth + (hiddenActionsWidth * progress);
+          final trailingOpacity = 1 - Curves.easeIn.transform(progress);
+
+          return Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              width: groupWidth,
+              height: actionSize,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  SizedBox(
+                    width: inputWidth,
+                    height: actionSize,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0x805B5A5F),
+                        borderRadius: BorderRadius.circular(17),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: TextField(
+                        controller: _textController,
+                        minLines: 1,
+                        maxLines: 1,
+                        textAlignVertical: TextAlignVertical.center,
+                        textCapitalization: TextCapitalization.sentences,
+                        style: const TextStyle(
+                          color: Color(0xFFFEFEFE),
+                          fontSize: 14,
+                        ),
+                        decoration: const InputDecoration(
+                          isCollapsed: true,
+                          border: InputBorder.none,
+                        ),
+                        onSubmitted: (_) => _send(),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: inputWidth + gap,
+                    child: IgnorePointer(
+                      ignoring: progress > 0.05,
+                      child: Opacity(
+                        opacity: trailingOpacity,
+                        child: const _ChatActionButton(
+                          assetPath: 'assets/buttons/trail button.svg',
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left:
+                        collapsedInputWidth +
+                        gap +
+                        actionSize +
+                        gap +
+                        ((actionSize + gap) * progress),
+                    child: IgnorePointer(
+                      ignoring: progress > 0.05,
+                      child: Opacity(
+                        opacity: trailingOpacity,
+                        child: const _ChatActionButton(
+                          assetPath: 'assets/buttons/camera button.svg',
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 0,
+                    child: _ChatActionButton(
+                      assetPath: _hasDraft
+                          ? 'assets/buttons/send button.svg'
+                          : 'assets/buttons/microphone button.svg',
+                      onTap: _hasDraft && !_isSending ? _send : null,
+                    ),
+                  ),
+                ],
               ),
-              onSubmitted: (_) => _send(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Los SVG de acciones tienen un canvas grande para su sombra. Esta ventana
+/// conserva el círculo visible en exactamente 33×33 px.
+class _ChatActionButton extends StatelessWidget {
+  const _ChatActionButton({required this.assetPath, this.onTap});
+
+  final String assetPath;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: ClipRect(
+        child: SizedBox(
+          width: 33,
+          height: 33,
+          child: OverflowBox(
+            maxWidth: 113,
+            maxHeight: 103,
+            alignment: Alignment.topLeft,
+            child: Transform.translate(
+              offset: const Offset(-40, -32),
+              child: SvgPicture.asset(assetPath, width: 113, height: 103),
             ),
           ),
-          const SizedBox(width: 8),
-          IconButton.filled(
-            onPressed: _isSending ? null : _send,
-            icon: _isSending
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.arrow_upward),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -396,8 +506,11 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bubbleColor = isMine
-        ? Theme.of(context).colorScheme.primary
-        : const Color(0xFF3A3A3A);
+        ? const Color(0xFF654CDD)
+        : const Color(0xFFFEFEFE);
+    final textColor = isMine
+        ? const Color(0xFFFEFEFE)
+        : const Color(0xFF151515);
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -422,10 +535,7 @@ class _MessageBubble extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                message.content,
-                style: const TextStyle(color: Colors.white),
-              ),
+              Text(message.content, style: TextStyle(color: textColor)),
               const SizedBox(height: 4),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -434,7 +544,7 @@ class _MessageBubble extends StatelessWidget {
                     Text(
                       'editado',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.55),
+                        color: textColor.withValues(alpha: 0.55),
                         fontSize: 10,
                         fontStyle: FontStyle.italic,
                       ),
@@ -444,7 +554,7 @@ class _MessageBubble extends StatelessWidget {
                   Text(
                     _formatTime(message.createdAt),
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.65),
+                      color: textColor.withValues(alpha: 0.65),
                       fontSize: 10,
                     ),
                   ),
