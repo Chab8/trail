@@ -3,10 +3,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../services/trail_visibility_service.dart';
 import '../models/completed_trail.dart';
 import '../services/spotify_service.dart';
 import '../services/trail_library_service.dart';
-import '../services/trail_visibility_service.dart';
 import 'trail_like_button.dart';
 import 'trail_map_preview.dart';
 
@@ -33,8 +33,9 @@ class TrailDetailDialog extends StatefulWidget {
 
   final CompletedTrail trail;
 
-  /// Si es `false` (perfil de otro usuario), se oculta el botón de editar:
-  /// solo el dueño del trail puede editarlo.
+  /// Si es `false` (perfil de otro usuario), se oculta el botón de editar y
+  /// el de ocultar/mostrar canciones: solo el dueño puede hacerlo. Además,
+  /// las canciones ocultas por el dueño no aparecen.
   final bool isOwnTrail;
 
   /// Callback invocado cuando el trail es eliminado exitosamente.
@@ -86,10 +87,28 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
   bool _isDeleting = false;
   bool _isTopExpanded = false;
   int _selectedSongIndex = 0;
-  final Set<int> _hiddenSongIndexes = <int>{};
+
+  // Arranca con lo que ya está guardado en Supabase para este trail.
+  late final Set<int> _hiddenSongIndexes = <int>{
+    ...widget.trail.hiddenSongIndexes,
+  };
   String? _topGenre;
 
-  bool get _hasSongs => widget.trail.songs.isNotEmpty;
+  /// Posiciones de las canciones que se pueden recorrer con las flechas.
+  /// El dueño ve todas; cualquier otro usuario solo ve las que el dueño
+  /// no ocultó.
+  List<int> get _navigableIndexes {
+    final all = List<int>.generate(widget.trail.songs.length, (i) => i);
+    if (widget.isOwnTrail) return all;
+    return all.where((i) => !_hiddenSongIndexes.contains(i)).toList();
+  }
+
+  bool get _hasSongs => _navigableIndexes.isNotEmpty;
+
+  /// Cantidad de canciones que se muestran en "N tracks".
+  int get _visibleTrackCount => widget.isOwnTrail
+      ? widget.trail.songs.length
+      : widget.trail.songs.length - _hiddenSongIndexes.length;
 
   String get _selectedSongTitle => _hasSongs
       ? widget.trail.songs[_selectedSongIndex].title
@@ -99,7 +118,7 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
       !_hiddenSongIndexes.contains(_selectedSongIndex);
 
   TrailActiveTimeRange? get _selectedSongRange =>
-      _songRangeFor(_selectedSongIndex);
+      _hasSongs ? _songRangeFor(_selectedSongIndex) : null;
 
   List<TrailActiveTimeRange> get _hiddenSongRanges => _hiddenSongIndexes
       .map(_songRangeFor)
@@ -114,51 +133,109 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
     return end > start ? TrailActiveTimeRange(start: start, end: end) : null;
   }
 
-  Future<void> _toggleSelectedSongVisibility() async {
+    Future<void> _toggleSelectedSongVisibility() async {
     if (!_hasSongs) return;
+
+    final index = _selectedSongIndex;
+    final wasHidden = _hiddenSongIndexes.contains(index);
+
     setState(() {
-      if (!_hiddenSongIndexes.add(_selectedSongIndex)) {
-        _hiddenSongIndexes.remove(_selectedSongIndex);
+      if (wasHidden) {
+        _hiddenSongIndexes.remove(index);
+      } else {
+        _hiddenSongIndexes.add(index);
       }
     });
-    await TrailVisibilityService.instance.saveHiddenSongIndexes(
-      widget.trail.id,
-      _hiddenSongIndexes,
-    );
+
+    // Solo el dueño del trail guarda el cambio. Si estás viendo el trail
+    // de otra persona, el cambio es solo visual y no se guarda.
+    if (!widget.isOwnTrail) return;
+
+    try {
+      await TrailLibraryService.instance.setHiddenSongIndexes(
+        widget.trail.id,
+        Set<int>.from(_hiddenSongIndexes),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      // Si falló el guardado, deshacemos el cambio en pantalla.
+      setState(() {
+        if (wasHidden) {
+          _hiddenSongIndexes.add(index);
+        } else {
+          _hiddenSongIndexes.remove(index);
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo guardar el cambio.')),
+      );
+    }
   }
 
   void _expandTopSection() {
+    final indexes = _navigableIndexes;
     setState(() {
-      _selectedSongIndex = 0;
+      _selectedSongIndex = indexes.isEmpty ? 0 : indexes.first;
       _isTopExpanded = true;
     });
   }
 
   void _showPreviousSong() {
-    if (!_hasSongs || _selectedSongIndex == 0) return;
-    setState(() => _selectedSongIndex--);
+    final indexes = _navigableIndexes;
+    final position = indexes.indexOf(_selectedSongIndex);
+    if (position <= 0) return;
+    setState(() => _selectedSongIndex = indexes[position - 1]);
   }
 
   void _showNextSong() {
-    if (!_hasSongs || _selectedSongIndex >= widget.trail.songs.length - 1) {
-      return;
-    }
-    setState(() => _selectedSongIndex++);
+    final indexes = _navigableIndexes;
+    final position = indexes.indexOf(_selectedSongIndex);
+    if (position < 0 || position >= indexes.length - 1) return;
+    setState(() => _selectedSongIndex = indexes[position + 1]);
   }
 
   @override
   void initState() {
     super.initState();
     _loadTopGenre();
-    _loadHiddenSongs();
+    _hiddenSongIndexes.addAll(widget.trail.hiddenSongIndexes);
+    _migrateLocalHiddenSongs();
   }
 
-  Future<void> _loadHiddenSongs() async {
-    final hidden = await TrailVisibilityService.instance.getHiddenSongIndexes(
+  /// Los trails que ocultaron canciones antes de pasar a Supabase las tienen
+  /// guardadas solo en este celular. Las subimos una única vez (solo si en
+  /// Supabase todavía no hay nada) y SIEMPRE borramos la copia del celular,
+  /// para que no vuelva a pisar los cambios nuevos.
+  Future<void> _migrateLocalHiddenSongs() async {
+    if (!widget.isOwnTrail) return;
+
+    final local = await TrailVisibilityService.instance.getHiddenSongIndexes(
       widget.trail.id,
     );
-    if (!mounted) return;
-    setState(() => _hiddenSongIndexes.addAll(hidden));
+    if (local.isEmpty) return;
+
+    // Borramos la copia local pase lo que pase.
+    await TrailVisibilityService.instance.saveHiddenSongIndexes(
+      widget.trail.id,
+      <int>{},
+    );
+
+    // Si en Supabase ya había datos, esos mandan.
+    if (widget.trail.hiddenSongIndexes.isNotEmpty || !mounted) return;
+    if (_hiddenSongIndexes.isNotEmpty) return;
+
+    final valid = local.where((i) => i < widget.trail.songs.length).toSet();
+    if (valid.isEmpty) return;
+
+    setState(() => _hiddenSongIndexes.addAll(valid));
+    try {
+      await TrailLibraryService.instance.saveHiddenSongIndexes(
+        widget.trail.id,
+        Set<int>.of(_hiddenSongIndexes),
+      );
+    } catch (_) {
+      // Si falla, no pasa nada: el usuario puede volver a ocultarlas.
+    }
   }
 
   Future<void> _loadTopGenre() async {
@@ -387,7 +464,8 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
                     segments: widget.trail.segments,
                     height: mapHeight,
                     backgroundColor: Colors.transparent,
-                    highlightedRange: _isTopExpanded && _isSelectedSongVisible
+                    highlightedRange:
+                        _isTopExpanded && _hasSongs && _isSelectedSongVisible
                         ? _selectedSongRange
                         : null,
                     hiddenRanges: _hiddenSongRanges,
@@ -489,7 +567,7 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
         const SizedBox(height: 5),
         _StatChip(
           iconPath: 'assets/icons/music_note.svg',
-          label: '${widget.trail.songs.length} tracks',
+          label: '$_visibleTrackCount tracks',
         ),
         const SizedBox(height: 8),
         Container(width: 248, height: 1, color: _colorSub),
@@ -510,6 +588,9 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
   }
 
   Widget _buildExpandedTrackContent() {
+    final indexes = _navigableIndexes;
+    final position = indexes.indexOf(_selectedSongIndex);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -517,30 +598,33 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
           children: [
             _SongArrowButton(
               assetPath: 'assets/icons/left arrow.svg',
-              enabled: _hasSongs && _selectedSongIndex > 0,
+              enabled: _hasSongs && position > 0,
               onTap: _showPreviousSong,
             ),
             Expanded(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  GestureDetector(
-                    onTap: _toggleSelectedSongVisibility,
-                    behavior: HitTestBehavior.opaque,
-                    child: SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: Center(
-                        child: SvgPicture.asset(
-                          _isSelectedSongVisible
-                              ? 'assets/icons/view icon.svg'
-                              : 'assets/icons/hide view icon.svg',
-                          height: 13,
+                  // El ojito para ocultar/mostrar solo lo ve el dueño.
+                  if (widget.isOwnTrail) ...[
+                    GestureDetector(
+                      onTap: _toggleSelectedSongVisibility,
+                      behavior: HitTestBehavior.opaque,
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: Center(
+                          child: SvgPicture.asset(
+                            _isSelectedSongVisible
+                                ? 'assets/icons/view icon.svg'
+                                : 'assets/icons/hide view icon.svg',
+                            height: 13,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 5),
+                    const SizedBox(width: 5),
+                  ],
                   Flexible(
                     child: Text(
                       _selectedSongTitle,
@@ -560,8 +644,7 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
             _SongArrowButton(
               assetPath: 'assets/icons/right arrow.svg',
               enabled:
-                  _hasSongs &&
-                  _selectedSongIndex < widget.trail.songs.length - 1,
+                  _hasSongs && position >= 0 && position < indexes.length - 1,
               onTap: _showNextSong,
             ),
           ],

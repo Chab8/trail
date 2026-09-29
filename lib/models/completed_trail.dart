@@ -1,5 +1,6 @@
 import 'trail_song.dart';
 import '../services/trail_service.dart';
+import '../widgets/trail_map_preview.dart';
 
 /// El resumen que se muestra en el perfil para un trail finalizado.
 ///
@@ -15,6 +16,7 @@ class CompletedTrail {
     required this.duration,
     required this.distanceMeters,
     this.segments = const [],
+    this.hiddenSongIndexes = const {},
   });
 
   /// El ID del trail en Supabase (tabla `trails`). Lo necesitamos para
@@ -34,6 +36,26 @@ class CompletedTrail {
   /// consecutivos; los segmentos separados indican que el trail estuvo
   /// pausado entre ambos.
   final List<List<TrailPoint>> segments;
+
+  /// Posiciones (dentro de [songs]) de las canciones que el dueño del trail
+  /// decidió ocultar. Se guarda en Supabase, así que todos los usuarios
+  /// respetan esta elección.
+  final Set<int> hiddenSongIndexes;
+
+  /// Intervalos de tiempo activo de las canciones ocultas. Sirve para que
+  /// el mapa no dibuje esos tramos.
+  List<TrailActiveTimeRange> get hiddenRanges {
+    final ranges = <TrailActiveTimeRange>[];
+    for (final index in hiddenSongIndexes) {
+      if (index < 0 || index >= songs.length) continue;
+      final start = songStartOffsetAt(index);
+      final end = songEndOffsetAt(index);
+      if (end > start) {
+        ranges.add(TrailActiveTimeRange(start: start, end: end));
+      }
+    }
+    return ranges;
+  }
 
   /// El artista al que más minutos le dedicaste durante este trail, o
   /// null si no hay datos suficientes para calcularlo.

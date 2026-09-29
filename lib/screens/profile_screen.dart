@@ -348,6 +348,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 ///
 /// Diseño: mini-mapa cuadrado a la izquierda | nombre + fecha al centro |
 /// chevron de expansión a la derecha. Al tocarla se abre TrailDetailDialog.
+///
+/// El mini-mapa no dibuja las canciones que el dueño ocultó.
 class TrailSummaryCard extends StatelessWidget {
   const TrailSummaryCard(this.trail, {super.key, this.isOwnProfile = true});
 
@@ -359,6 +361,20 @@ class TrailSummaryCard extends StatelessWidget {
   final bool isOwnProfile;
 
   static const _accentColor = Color(0xFF654CDD);
+
+  /// Convierte las canciones ocultas en rangos de tiempo del trail.
+  List<TrailActiveTimeRange> get _hiddenRanges {
+    final ranges = <TrailActiveTimeRange>[];
+    for (final index in trail.hiddenSongIndexes) {
+      if (index < 0 || index >= trail.songs.length) continue;
+      final start = trail.songStartOffsetAt(index);
+      final end = trail.songEndOffsetAt(index);
+      if (end > start) {
+        ranges.add(TrailActiveTimeRange(start: start, end: end));
+      }
+    }
+    return ranges;
+  }
 
   String _formatDate(DateTime date) {
     const months = [
@@ -378,7 +394,8 @@ class TrailSummaryCard extends StatelessWidget {
         var origin = Alignment.center;
         if (box != null) {
           final pos = box.localToGlobal(Offset.zero);
-          final cardCenter = pos + Offset(box.size.width / 2, box.size.height / 2);
+          final cardCenter =
+              pos + Offset(box.size.width / 2, box.size.height / 2);
           origin = Alignment(
             ((cardCenter.dx / screenSize.width) * 2 - 1).clamp(-1.0, 1.0),
             ((cardCenter.dy / screenSize.height) * 2 - 1).clamp(-1.0, 1.0),
@@ -411,6 +428,7 @@ class TrailSummaryCard extends StatelessWidget {
                     child: TrailMapPreview(
                       segments: trail.segments,
                       height: 64,
+                      hiddenRanges: _hiddenRanges,
                     ),
                   ),
                 ),
@@ -474,7 +492,7 @@ class TrailSummaryCard extends StatelessWidget {
             ),
             // ── Likes: corazón + contador, abajo a la derecha ────────────
             Positioned(
-              right: 0,
+              right: 92,
               bottom: 0,
               child: TrailLikeButton(trailId: trail.id),
             ),

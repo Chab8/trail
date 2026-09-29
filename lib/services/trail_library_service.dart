@@ -17,7 +17,7 @@ class TrailLibraryService extends ChangeNotifier {
     final data = await _client
         .from('trails')
         .select(
-          'id, title, started_at, ended_at, distance_m, duration_seconds, gps_segments, '
+          'id, title, started_at, ended_at, distance_m, duration_seconds, gps_segments, hidden_song_indexes, '
           'trail_segments(track_id, track_name, artist, started_at, ended_at)',
         )
         .eq('user_id', userId)
@@ -82,7 +82,14 @@ class TrailLibraryService extends ChangeNotifier {
           )
           .toList();
 
+      final hiddenSongIndexes = (row['hidden_song_indexes'] as List<dynamic>? ??
+              [])
+          .whereType<num>()
+          .map((n) => n.toInt())
+          .toSet();
+
       return CompletedTrail(
+        hiddenSongIndexes: hiddenSongIndexes,
         id: row['id'] as String,
         name: row['title'] as String? ?? 'Trail',
         songs: songs,
@@ -92,6 +99,32 @@ class TrailLibraryService extends ChangeNotifier {
         segments: gpsSegments,
       );
     }).toList();
+  }
+
+  /// Guarda en Supabase qué canciones del trail están ocultas.
+  /// Falla (lanza error) si no se pudo guardar.
+  Future<void> setHiddenSongIndexes(
+    String trailId,
+    Set<int> hiddenIndexes,
+  ) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw StateError('No hay una sesión iniciada.');
+
+    final sorted = hiddenIndexes.toList()..sort();
+
+    final updated = await _client
+        .from('trails')
+        .update({'hidden_song_indexes': sorted})
+        .eq('id', trailId)
+        .eq('user_id', userId)
+        .select('id');
+
+    if (updated.isEmpty) {
+      throw StateError('No se pudo guardar el cambio.');
+    }
+
+    // Avisa al perfil para que recargue los trails y el mini-mapa se actualice.
+    notifyListeners();
   }
 
   Duration _offsetFromTrailStart(
@@ -138,6 +171,22 @@ class TrailLibraryService extends ChangeNotifier {
 
     notifyListeners();
   }
+
+  Future<void> saveHiddenSongIndexes(
+  String trailId,
+  Set<int> indexes,
+) async {
+  final userId = _client.auth.currentUser?.id;
+  if (userId == null) throw StateError('No hay una sesión iniciada.');
+
+  await _client
+      .from('trails')
+      .update({
+        'hidden_song_indexes': indexes.toList(),
+      })
+      .eq('id', trailId)
+      .eq('user_id', userId);
+}
 
   Future<void> addTrail({
     required String name,
