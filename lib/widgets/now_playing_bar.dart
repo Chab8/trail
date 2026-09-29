@@ -122,8 +122,8 @@ class _NowPlayingBarState extends State<NowPlayingBar> {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
                     shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
                   ),
                 ),
@@ -134,6 +134,7 @@ class _NowPlayingBarState extends State<NowPlayingBar> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.75),
+                    fontWeight: FontWeight.w500,
                     fontSize: 12,
                   ),
                 ),

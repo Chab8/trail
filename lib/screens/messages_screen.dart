@@ -118,7 +118,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mensajes'),
+        title: const Text(
+          'Mensajes',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_square),
@@ -192,8 +195,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
             ),
             title: Text(
               '@${conversation.otherUsername}',
-              style: TextStyle(
-                fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
               ),
             ),
             subtitle: Text(
@@ -204,8 +208,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       : conversation.lastMessagePreview!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
               ),
             ),
             trailing: hasUnread

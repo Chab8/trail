@@ -387,8 +387,8 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: _colorMain,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
@@ -536,7 +536,11 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
                     const SizedBox(width: 5),
                     const Text(
                       'Public',
-                      style: TextStyle(color: _colorSub, fontSize: 12),
+                      style: TextStyle(
+                        color: _colorSub,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
@@ -576,12 +580,20 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
         const SizedBox(height: 3),
         Text(
           _topGenre ?? 'Sin datos',
-          style: const TextStyle(color: _colorSub, fontSize: 13),
+          style: const TextStyle(
+            color: _colorSub,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
         ),
         const SizedBox(height: 2),
         Text(
           _formatDate(widget.trail.completedAt),
-          style: const TextStyle(color: _colorSub, fontSize: 12),
+          style: const TextStyle(
+            color: _colorSub,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );
@@ -742,8 +754,8 @@ class _SectionHeader extends StatelessWidget {
           label,
           style: const TextStyle(
             color: _colorMain,
-            fontWeight: FontWeight.w700,
-            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
           ),
         ),
       ],
@@ -772,7 +784,14 @@ class _StatChip extends StatelessWidget {
           colorFilter: const ColorFilter.mode(_colorSub, BlendMode.srcIn),
         ),
         const SizedBox(width: 5),
-        Text(label, style: const TextStyle(color: _colorSub, fontSize: 13)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: _colorSub,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     );
   }

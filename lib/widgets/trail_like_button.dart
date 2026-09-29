@@ -155,7 +155,7 @@ class _TrailLikeButtonState extends State<TrailLikeButton> {
               style: const TextStyle(
                 color: Color(0xFFFEFEFE),
                 fontSize: 12,
-                fontWeight: FontWeight.w400,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],

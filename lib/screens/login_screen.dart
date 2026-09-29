@@ -109,12 +109,16 @@ class _LoginScreenState extends State<LoginScreen> {
         controller: controller,
         obscureText: obscureText,
         keyboardType: keyboardType,
-        style: const TextStyle(fontSize: 15, color: Color(0xFFFEFEFE)),
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: Color(0xFFFEFEFE),
+        ),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w400,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
             color: Color(0xFF9C9C9C),
           ),
           filled: true,
@@ -176,7 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const Text(
                     'Login',
                     style: TextStyle(
-                      fontSize: 27,
+                      fontSize: 28,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFFFEFEFE),
                     ),
@@ -210,7 +214,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           'Forgot Password?',
                           style: TextStyle(
                             fontSize: 12,
-                            fontWeight: FontWeight.w400,
+                            fontWeight: FontWeight.w500,
                             color: Color(0xFFFEFEFE),
                           ),
                         ),
@@ -274,7 +278,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               : const Text(
                                   'Login',
                                   style: TextStyle(
-                                    fontSize: 17,
+                                    fontSize: 20,
                                     fontWeight: FontWeight.bold,
                                     color: Color(0xFFFEFEFE),
                                   ),
@@ -294,7 +298,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       text: const TextSpan(
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: FontWeight.w400,
+                          fontWeight: FontWeight.w500,
                           color: Color(0xFFFEFEFE),
                         ),
                         children: [
@@ -337,7 +341,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Text(
                             'Login with Google',
                             style: GoogleFonts.roboto(
-                              fontSize: 17,
+                              fontSize: 20,
                               fontWeight: FontWeight.w500,
                               color: Colors.black.withOpacity(0.54),
                             ),
@@ -377,7 +381,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const Text(
                             'Login with Apple',
                             style: TextStyle(
-                              fontSize: 17,
+                              fontSize: 20,
                               fontWeight: FontWeight.w500,
                               color: Color(0xFFFFFFFF),
                             ),

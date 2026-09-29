@@ -128,7 +128,11 @@ class _MapSearchBarState extends State<MapSearchBar> {
             Expanded(
               child: TextField(
                 controller: _controller,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
                 cursorColor: Colors.white,
                 textAlignVertical: TextAlignVertical.center,
                 decoration: InputDecoration(
@@ -138,7 +142,8 @@ class _MapSearchBarState extends State<MapSearchBar> {
                   hintText: 'Search song, user or place',
                   hintStyle: TextStyle(
                     color: Colors.white.withValues(alpha: 0.6),
-                    fontSize: 14,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),

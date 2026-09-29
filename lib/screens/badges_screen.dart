@@ -36,7 +36,7 @@ class BadgesScreen extends StatelessWidget {
       width: width,
       height: height,
       title: category.title,
-      titleSize: 15,
+      titleSize: 16,
       padding: const EdgeInsets.fromLTRB(19, 16, 12, 0),
       onTap: () => _openCategory(context, category),
     );
@@ -133,7 +133,7 @@ class _SectionTitle extends StatelessWidget {
       style: const TextStyle(
         color: BadgesScreen._colorMain,
         fontSize: 20,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.bold,
       ),
     );
   }
@@ -176,7 +176,7 @@ class _BadgeCard extends StatelessWidget {
                 style: TextStyle(
                   color: BadgesScreen._colorMain,
                   fontSize: titleSize,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),

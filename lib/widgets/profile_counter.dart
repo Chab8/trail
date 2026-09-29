@@ -31,7 +31,7 @@ class ProfileCounter extends StatelessWidget {
           '$value',
           style: const TextStyle(
             fontSize: 20,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.bold,
             color: Color(0xFFFEFEFE),
           ),
         ),
@@ -39,8 +39,8 @@ class ProfileCounter extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w400,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
             color: Color(0xFF9C9C9C),
           ),
         ),

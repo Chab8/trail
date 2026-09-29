@@ -244,12 +244,16 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         controller: controller,
         obscureText: obscureText,
         keyboardType: keyboardType,
-        style: const TextStyle(fontSize: 15, color: Color(0xFFFEFEFE)),
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: Color(0xFFFEFEFE),
+        ),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w400,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
             color: Color(0xFF9C9C9C),
           ),
           filled: true,
@@ -298,7 +302,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               'Log In',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 26,
+                fontSize: 28,
                 color: Color(0xFF09080B),
               ),
             ),
@@ -321,7 +325,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               'Sign Up',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 26,
+                fontSize: 28,
                 color: Color(0xFFFEFEFE),
               ),
             ),
@@ -357,7 +361,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   const Text(
                     'Login',
                     style: TextStyle(
-                      fontSize: 27,
+                      fontSize: 28,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFFFEFEFE),
                     ),
@@ -391,7 +395,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           'Forgot Password?',
                           style: TextStyle(
                             fontSize: 12,
-                            fontWeight: FontWeight.w400,
+                            fontWeight: FontWeight.w500,
                             color: Color(0xFFFEFEFE),
                           ),
                         ),
@@ -435,7 +439,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           : const Text(
                               'Login',
                               style: TextStyle(
-                                fontSize: 17,
+                                fontSize: 20,
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFFFEFEFE),
                               ),
@@ -451,7 +455,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       text: const TextSpan(
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: FontWeight.w400,
+                          fontWeight: FontWeight.w500,
                           color: Color(0xFFFEFEFE),
                         ),
                         children: [
@@ -494,7 +498,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           Text(
                             'Login with Google',
                             style: GoogleFonts.roboto(
-                              fontSize: 17,
+                              fontSize: 20,
                               fontWeight: FontWeight.w500,
                               color: Colors.black.withOpacity(0.54),
                             ),
@@ -534,7 +538,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           const Text(
                             'Login with Apple',
                             style: TextStyle(
-                              fontSize: 17,
+                              fontSize: 20,
                               fontWeight: FontWeight.w500,
                               color: Color(0xFFFFFFFF),
                             ),
@@ -577,7 +581,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   const Text(
                     'Sign Up',
                     style: TextStyle(
-                      fontSize: 27,
+                      fontSize: 28,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFFFEFEFE),
                     ),
@@ -643,7 +647,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           : const Text(
                               'Sign Up',
                               style: TextStyle(
-                                fontSize: 17,
+                                fontSize: 20,
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFFFEFEFE),
                               ),
@@ -659,7 +663,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       text: const TextSpan(
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: FontWeight.w400,
+                          fontWeight: FontWeight.w500,
                           color: Color(0xFFFEFEFE),
                         ),
                         children: [
@@ -702,7 +706,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           Text(
                             'Sign Up with Google',
                             style: GoogleFonts.roboto(
-                              fontSize: 17,
+                              fontSize: 20,
                               fontWeight: FontWeight.w500,
                               color: Colors.black.withOpacity(0.54),
                             ),
@@ -742,7 +746,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           const Text(
                             'Sign Up with Apple',
                             style: TextStyle(
-                              fontSize: 17,
+                              fontSize: 20,
                               fontWeight: FontWeight.w500,
                               color: Color(0xFFFFFFFF),
                             ),

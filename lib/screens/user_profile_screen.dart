@@ -286,8 +286,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           Text(
             '@${profile.username}',
             style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
             ),
           ),
           if (!_isOwnProfile) ...[

@@ -402,6 +402,10 @@ class _ChatScreenState extends State<ChatScreen>
                               child: Text(
                                 '@${widget.otherUsername}',
                                 overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ],
@@ -450,41 +454,44 @@ class _ChatScreenState extends State<ChatScreen>
             alignment: Alignment.centerRight,
             child: SizedBox(
               width: groupWidth,
-              height: actionSize,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  SizedBox(
+                  Container(
                     width: inputWidth,
-                    height: actionSize,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0x805B5A5F),
-                        borderRadius: BorderRadius.circular(17),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      child: Center(
-                        child: TextField(
-                          controller: _textController,
-                          minLines: 1,
-                          maxLines: 1,
-                          textAlignVertical: TextAlignVertical.center,
-                          textCapitalization: TextCapitalization.sentences,
-                          style: const TextStyle(
-                            color: Color(0xFFFEFEFE),
-                            fontSize: 14,
-                          ),
-                          decoration: const InputDecoration(
-                            isCollapsed: true,
-                            contentPadding: EdgeInsets.zero,
-                            border: InputBorder.none,
-                          ),
-                          onSubmitted: (_) => _send(),
+                    constraints: const BoxConstraints(minHeight: actionSize),
+                    decoration: BoxDecoration(
+                      color: const Color(0x805B5A5F),
+                      borderRadius: BorderRadius.circular(17),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 4,
+                    ),
+                    child: Center(
+                      child: TextField(
+                        controller: _textController,
+                        minLines: 1,
+                        maxLines: 4,
+                        keyboardType: TextInputType.multiline,
+                        textInputAction: TextInputAction.newline,
+                        textAlignVertical: TextAlignVertical.center,
+                        textCapitalization: TextCapitalization.sentences,
+                        style: const TextStyle(
+                          color: Color(0xFFFEFEFE),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        decoration: const InputDecoration(
+                          isCollapsed: true,
+                          contentPadding: EdgeInsets.zero,
+                          border: InputBorder.none,
                         ),
                       ),
                     ),
                   ),
                   Positioned(
+                    top: 0,
                     left: inputWidth + gap,
                     child: IgnorePointer(
                       ignoring: progress > 0.05,
@@ -497,6 +504,7 @@ class _ChatScreenState extends State<ChatScreen>
                     ),
                   ),
                   Positioned(
+                    top: 0,
                     left:
                         collapsedInputWidth +
                         gap +
@@ -514,6 +522,7 @@ class _ChatScreenState extends State<ChatScreen>
                     ),
                   ),
                   Positioned(
+                    top: 0,
                     right: 0,
                     child: _ChatActionButton(
                       assetPath: _hasDraft
@@ -652,7 +661,14 @@ class _MessageBubble extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(message.content, style: TextStyle(color: textColor)),
+              Text(
+                message.content,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               const SizedBox(height: 4),
               Row(
                 mainAxisSize: MainAxisSize.min,

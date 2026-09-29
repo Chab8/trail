@@ -17,6 +17,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _profileService = ProfileService();
 
+  static const _fieldStyle = TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w500,
+  );
+  static const _labelStyle = TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w500,
+  );
+
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -124,7 +133,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Crear cuenta')),
+      appBar: AppBar(
+        title: const Text(
+          'Crear cuenta',
+          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+        ),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -134,21 +148,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
               children: [
                 TextField(
                   controller: _usernameController,
+                  style: _fieldStyle,
                   decoration: const InputDecoration(
                     labelText: 'Nombre de usuario',
+                    labelStyle: _labelStyle,
                     helperText: 'Mínimo 3 caracteres. Tiene que ser único.',
                   ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _emailController,
-                  decoration: const InputDecoration(labelText: 'Email'),
+                  style: _fieldStyle,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    labelStyle: _labelStyle,
+                  ),
                   keyboardType: TextInputType.emailAddress,
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _passwordController,
-                  decoration: const InputDecoration(labelText: 'Contraseña'),
+                  style: _fieldStyle,
+                  decoration: const InputDecoration(
+                    labelText: 'Contraseña',
+                    labelStyle: _labelStyle,
+                  ),
                   obscureText: true,
                 ),
                 const SizedBox(height: 24),
@@ -193,7 +217,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Text('Registrarme'),
+                            : const Text(
+                                'Registrarme',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                       ),
                     ),
                   ),
