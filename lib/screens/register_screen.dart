@@ -20,6 +20,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
   String? _errorMessage;
 
+  @override
+  void initState() {
+    super.initState();
+    _usernameController.addListener(_refresh);
+    _emailController.addListener(_refresh);
+    _passwordController.addListener(_refresh);
+  }
+
+  void _refresh() => setState(() {});
+
+  bool get _canRegister =>
+      _usernameController.text.trim().isNotEmpty &&
+      _emailController.text.trim().isNotEmpty &&
+      _passwordController.text.length >= 8;
+
   Future<void> _register() async {
     final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
@@ -148,7 +163,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _isLoading ? null : _register,
+                    onPressed: _isLoading ? null : (_canRegister ? _register : null),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       disabledBackgroundColor: Colors.transparent,
@@ -160,10 +175,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     child: Ink(
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
+                        gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [Color(0xFF7635FF), Color(0xFF4227C3)],
+                          colors: !_isLoading && _canRegister
+                              ? const [Color(0xFF7635FF), Color(0xFF4227C3)]
+                              : const [Color(0xFF9C9C9C), Color(0xFF9C9C9C)],
                         ),
                         borderRadius: BorderRadius.circular(999),
                       ),

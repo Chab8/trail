@@ -43,6 +43,28 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     super.dispose();
   }
 
+  @override
+  void initState() {
+    super.initState();
+    _loginIdCtrl.addListener(_refreshLogin);
+    _loginPwCtrl.addListener(_refreshLogin);
+    _regUserCtrl.addListener(_refreshRegister);
+    _regEmailCtrl.addListener(_refreshRegister);
+    _regPwCtrl.addListener(_refreshRegister);
+  }
+
+  void _refreshLogin() => setState(() {});
+
+  void _refreshRegister() => setState(() {});
+
+  bool get _canLogin =>
+      _loginIdCtrl.text.trim().isNotEmpty && _loginPwCtrl.text.length >= 8;
+
+  bool get _canRegister =>
+      _regUserCtrl.text.trim().isNotEmpty &&
+      _regEmailCtrl.text.trim().isNotEmpty &&
+      _regPwCtrl.text.length >= 8;
+
   // ── Navigation helper ────────────────────────────────────────────────────
   void _switchTo(_AuthView view) {
     FocusScope.of(context).unfocus();
@@ -55,10 +77,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   Widget _buildPrimaryAuthButton({
     required VoidCallback? onPressed,
+    required bool enabled,
     required Widget child,
   }) {
     return ElevatedButton(
-      onPressed: onPressed,
+      onPressed: (enabled && onPressed != null) ? onPressed : null,
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.transparent,
         disabledBackgroundColor: Colors.transparent,
@@ -68,10 +91,12 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       ),
       child: Ink(
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF7635FF), Color(0xFF4227C3)],
+            colors: enabled
+                ? const [Color(0xFF7635FF), Color(0xFF4227C3)]
+                : const [Color(0xFF9C9C9C), Color(0xFF9C9C9C)],
           ),
           borderRadius: BorderRadius.circular(999),
         ),
@@ -397,6 +422,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     height: 44,
                     child: _buildPrimaryAuthButton(
                       onPressed: _loginLoading ? null : _login,
+                      enabled: !_loginLoading && _canLogin,
                       child: _loginLoading
                           ? const SizedBox(
                               height: 20,
@@ -604,6 +630,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     height: 44,
                     child: _buildPrimaryAuthButton(
                       onPressed: _regLoading ? null : _register,
+                      enabled: !_regLoading && _canRegister,
                       child: _regLoading
                           ? const SizedBox(
                               height: 20,
