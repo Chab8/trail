@@ -629,6 +629,10 @@ class _MessageBubble extends StatelessWidget {
     this.onLongPress,
   });
 
+  // Medidas de la burbuja.
+  static const double _radius = 14.3;
+  static const double _tailWidth = 6;
+
   @override
   Widget build(BuildContext context) {
     final bubbleColor = isMine
@@ -644,60 +648,68 @@ class _MessageBubble extends StatelessWidget {
         onLongPress: onLongPress,
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           constraints: BoxConstraints(
             maxWidth: MediaQuery.sizeOf(context).width * 0.75,
           ),
-          decoration: BoxDecoration(
-            color: bubbleColor,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(16),
-              topRight: const Radius.circular(16),
-              bottomLeft: Radius.circular(isMine ? 16 : 4),
-              bottomRight: Radius.circular(isMine ? 4 : 16),
+          child: CustomPaint(
+            painter: _BubblePainter(
+              color: bubbleColor,
+              isMine: isMine,
+              radius: _radius,
+              tailWidth: _tailWidth,
             ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                message.content,
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
+            child: Padding(
+              // El lado de la cola lleva espacio extra para que el texto
+              // no se pise con ella.
+              padding: EdgeInsets.fromLTRB(
+                isMine ? 14 : 14 + _tailWidth,
+                10,
+                isMine ? 14 + _tailWidth : 14,
+                10,
               ),
-              const SizedBox(height: 4),
-              Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (message.editedAt != null) ...[
-                    Text(
-                      'editado',
-                      style: TextStyle(
-                        color: textColor.withValues(alpha: 0.55),
-                        fontSize: 10,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                  ],
                   Text(
-                    _formatTime(message.createdAt),
+                    message.content,
                     style: TextStyle(
-                      color: textColor.withValues(alpha: 0.65),
-                      fontSize: 10,
+                      color: textColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                  if (isMine) ...[
-                    const SizedBox(width: 4),
-                    _StatusTicks(message: message),
-                  ],
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (message.editedAt != null) ...[
+                        Text(
+                          'editado',
+                          style: TextStyle(
+                            color: textColor.withValues(alpha: 0.55),
+                            fontSize: 10,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      Text(
+                        _formatTime(message.createdAt),
+                        style: TextStyle(
+                          color: textColor.withValues(alpha: 0.65),
+                          fontSize: 10,
+                        ),
+                      ),
+                      if (isMine) ...[
+                        const SizedBox(width: 4),
+                        _StatusTicks(message: message),
+                      ],
+                    ],
+                  ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -710,6 +722,77 @@ class _MessageBubble extends StatelessWidget {
     final minute = local.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
   }
+}
+
+/// Dibuja la burbuja estilo iMessage: cuerpo con esquinas de radio 14,3 y
+/// una cola curva en la esquina inferior (derecha si es mío, izquierda si
+/// es de la otra persona).
+class _BubblePainter extends CustomPainter {
+  _BubblePainter({
+    required this.color,
+    required this.isMine,
+    required this.radius,
+    required this.tailWidth,
+  });
+
+  final Color color;
+  final bool isMine;
+  final double radius;
+  final double tailWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Dibujamos siempre la versión "mía" (cola a la derecha). Para la
+    // burbuja de la otra persona espejamos el lienzo horizontalmente.
+    if (!isMine) {
+      canvas.translate(size.width, 0);
+      canvas.scale(-1, 1);
+    }
+
+    final r = radius;
+    final h = size.height;
+    final right = size.width - tailWidth; // borde derecho del cuerpo
+
+    final path = Path()
+      // Arriba a la izquierda
+      ..moveTo(r, 0)
+      // Borde superior
+      ..lineTo(right - r, 0)
+      // Esquina superior derecha
+      ..arcToPoint(Offset(right, r), radius: Radius.circular(r))
+      // Borde derecho, hasta donde empieza la cola
+      ..lineTo(right, h - 16)
+      // La cola: curva cóncava que sale hacia afuera hasta la punta
+      ..cubicTo(
+        right, h - 7,
+        right + 1.5, h - 2.5,
+        right + tailWidth, h,
+      )
+      // Vuelve por debajo hacia la izquierda con una leve curva
+      ..cubicTo(
+        right + tailWidth - 3, h + 0.2,
+        right - 4, h,
+        right - 8, h,
+      )
+      // Borde inferior
+      ..lineTo(r, h)
+      // Esquina inferior izquierda
+      ..arcToPoint(Offset(0, h - r), radius: Radius.circular(r))
+      // Borde izquierdo
+      ..lineTo(0, r)
+      // Esquina superior izquierda
+      ..arcToPoint(Offset(r, 0), radius: Radius.circular(r))
+      ..close();
+
+    canvas.drawPath(path, Paint()..color = color..isAntiAlias = true);
+  }
+
+  @override
+  bool shouldRepaint(_BubblePainter old) =>
+      old.color != color ||
+      old.isMine != isMine ||
+      old.radius != radius ||
+      old.tailWidth != tailWidth;
 }
 
 /// Las tildes de estado, como en WhatsApp:
