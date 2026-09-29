@@ -19,6 +19,18 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String? _errorMessage;
 
+  @override
+  void initState() {
+    super.initState();
+    _identifierController.addListener(_refresh);
+    _passwordController.addListener(_refresh);
+  }
+
+  void _refresh() => setState(() {});
+
+  bool get _canLogin => _identifierController.text.trim().isNotEmpty &&
+      _passwordController.text.length >= 8;
+
   Future<void> _login() async {
     final identifier = _identifierController.text.trim();
     final password = _passwordController.text.trim();
@@ -228,7 +240,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: 293,
                     height: 44,
                     child: ElevatedButton(
-                      onPressed: _isLoading ? null : _login,
+                      onPressed: _isLoading ? null : (_canLogin ? _login : null),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
                         disabledBackgroundColor: Colors.transparent,
@@ -240,10 +252,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: Ink(
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
+                          gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
-                            colors: [Color(0xFF7635FF), Color(0xFF4227C3)],
+                            colors: !_isLoading && _canLogin
+                                ? const [Color(0xFF7635FF), Color(0xFF4227C3)]
+                                : const [Color(0xFF9C9C9C), Color(0xFF9C9C9C)],
                           ),
                           borderRadius: BorderRadius.circular(999),
                         ),
