@@ -141,7 +141,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
     if (_errorMessage != null && _conversations.isEmpty) {
       return Center(
-        child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+        child: Text(_errorMessage!, style: const TextStyle(color: Color(0xFFE01414))),
       );
     }
 
@@ -215,17 +215,20 @@ class _MessagesScreenState extends State<MessagesScreen> {
             ),
             trailing: hasUnread
                 ? Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
+                    width: 24,
+                    height: 24,
+                    alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: Colors.deepPurple,
-                      borderRadius: BorderRadius.circular(999),
+                      shape: BoxShape.circle,
                     ),
                     child: Text(
                       '${conversation.unreadCount}',
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   )
                 : null,

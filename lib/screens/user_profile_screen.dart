@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/completed_trail.dart';
@@ -241,7 +242,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 padding: const EdgeInsets.all(24.0),
                 child: Text(
                   _errorMessage!,
-                  style: const TextStyle(color: Colors.red),
+                  style: const TextStyle(color: Color(0xFFE01414)),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -306,11 +307,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         onPressed: _isOpeningChat ? null : _openChat,
                         child: _isOpeningChat
                             ? const _ButtonSpinner()
-                            : const Row(
+                            : Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.chat_bubble_outline, size: 18),
+                                  SvgPicture.asset(
+                                    'assets/icons/message.svg',
+                                    width: 18,
+                                    height: 18,
+                                  ),
                                   SizedBox(width: 6),
                                   Text('Mensaje'),
                                 ],

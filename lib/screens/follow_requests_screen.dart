@@ -109,7 +109,7 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.close, color: Colors.redAccent),
+                              icon: const Icon(Icons.close, color: Color(0xFFE01414)),
                               tooltip: 'Rechazar',
                               onPressed: () => _respond(request, false),
                             ),

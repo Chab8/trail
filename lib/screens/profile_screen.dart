@@ -334,7 +334,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       padding: const EdgeInsets.only(bottom: 16),
                       child: Text(
                         _errorMessage!,
-                        style: const TextStyle(color: Colors.red),
+                         style: const TextStyle(color: Color(0xFFE01414)),
                       ),
                     ),
                 ],

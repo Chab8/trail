@@ -181,7 +181,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     padding: const EdgeInsets.only(bottom: 16),
                     child: Text(
                       _errorMessage!,
-                      style: const TextStyle(color: Colors.red),
+                      style: const TextStyle(color: Color(0xFFE01414)),
                     ),
                   ),
                 SizedBox(
@@ -202,9 +202,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: !_isLoading && _canRegister
-                              ? const [Color(0xFF7635FF), Color(0xFF4227C3)]
-                              : const [Color(0xFF9C9C9C), Color(0xFF9C9C9C)],
+                      colors: !_isLoading && _canRegister
+                          ? const [Color(0xFF7635FF), Color(0xFF4227C3)]
+                          : const [Color(0xFF9C9C9C), Color(0xFF363636)],
                         ),
                         borderRadius: BorderRadius.circular(999),
                       ),

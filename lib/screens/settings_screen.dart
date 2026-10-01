@@ -197,7 +197,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       padding: const EdgeInsets.only(bottom: 16),
                       child: Text(
                         _errorMessage!,
-                        style: const TextStyle(color: Colors.redAccent),
+                         style: const TextStyle(color: Color(0xFFE01414)),
                       ),
                     ),
                   if (_successMessage != null)
@@ -297,8 +297,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: const Icon(Icons.logout),
                     label: const Text('Cerrar sesión'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.redAccent,
-                      side: const BorderSide(color: Colors.redAccent),
+                      foregroundColor: Color(0xFFE01414),
+                      side: const BorderSide(color: Color(0xFFE01414)),
                     ),
                   ),
                 ],

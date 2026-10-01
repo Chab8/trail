@@ -119,7 +119,7 @@ class _TrailControlsRowState extends State<TrailControlsRow>
             TextButton(
               onPressed: () => Navigator.of(dialogContext)
                   .pop(_FinishTrailChoice.discard),
-              style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+               style: TextButton.styleFrom(foregroundColor: Color(0xFFE01414)),
               child: const Text('Descartar'),
             ),
             Row(
@@ -170,7 +170,7 @@ class _TrailControlsRowState extends State<TrailControlsRow>
             ),
             TextButton(
               onPressed: () => Navigator.of(confirmContext).pop(true),
-              style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+               style: TextButton.styleFrom(foregroundColor: Color(0xFFE01414)),
               child: const Text('Eliminar'),
             ),
           ],

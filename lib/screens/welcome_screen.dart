@@ -94,9 +94,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: enabled
-                ? const [Color(0xFF7635FF), Color(0xFF4227C3)]
-                : const [Color(0xFF9C9C9C), Color(0xFF9C9C9C)],
+                colors: enabled
+                    ? const [Color(0xFF7635FF), Color(0xFF4227C3)]
+                    : const [Color(0xFF9C9C9C), Color(0xFF363636)],
           ),
           borderRadius: BorderRadius.circular(999),
         ),
@@ -412,7 +412,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         _loginError!,
                         style: const TextStyle(
                           fontSize: 11,
-                          color: Colors.redAccent,
+                           color: Color(0xFFE01414),
                         ),
                       ),
                     ),
@@ -620,7 +620,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         _regError!,
                         style: const TextStyle(
                           fontSize: 11,
-                          color: Colors.redAccent,
+                           color: Color(0xFFE01414),
                         ),
                       ),
                     ),

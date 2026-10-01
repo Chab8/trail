@@ -134,18 +134,23 @@ class _ChatScreenState extends State<ChatScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.edit_outlined),
+              leading: SvgPicture.asset(
+                'assets/icons/edit.svg',
+                width: 22,
+                height: 22,
+              ),
               title: const Text('Editar mensaje'),
               onTap: () => Navigator.of(sheetContext).pop('edit'),
             ),
             ListTile(
-              leading: const Icon(
-                Icons.delete_outline,
-                color: Colors.redAccent,
+              leading: SvgPicture.asset(
+                'assets/icons/delete red.svg',
+                width: 22,
+                height: 22,
               ),
               title: const Text(
                 'Eliminar mensaje',
-                style: TextStyle(color: Colors.redAccent),
+                style: TextStyle(color: Color(0xFFE01414)),
               ),
               onTap: () => Navigator.of(sheetContext).pop('delete'),
             ),
@@ -226,7 +231,7 @@ class _ChatScreenState extends State<ChatScreen>
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text(
               'Eliminar',
-              style: TextStyle(color: Colors.redAccent),
+              style: TextStyle(color: Color(0xFFE01414)),
             ),
           ),
         ],

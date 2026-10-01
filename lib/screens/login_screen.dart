@@ -231,7 +231,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         _errorMessage!,
                         style: const TextStyle(
                           fontSize: 12,
-                          color: Colors.redAccent,
+                          color: Color(0xFFE01414),
                         ),
                       ),
                     ),
@@ -261,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             end: Alignment.bottomCenter,
                             colors: !_isLoading && _canLogin
                                 ? const [Color(0xFF7635FF), Color(0xFF4227C3)]
-                                : const [Color(0xFF9C9C9C), Color(0xFF9C9C9C)],
+                                : const [Color(0xFF9C9C9C), Color(0xFF363636)],
                           ),
                           borderRadius: BorderRadius.circular(999),
                         ),

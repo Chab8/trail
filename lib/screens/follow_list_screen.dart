@@ -157,7 +157,7 @@ class _FollowListScreenState extends State<FollowListScreen>
           ? Center(
               child: Text(
                 _errorMessage!,
-                style: const TextStyle(color: Colors.red),
+                 style: const TextStyle(color: Color(0xFFE01414)),
               ),
             )
           : TabBarView(

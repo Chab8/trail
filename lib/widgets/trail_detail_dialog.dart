@@ -269,7 +269,7 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
             child: const Text(
               'Eliminar',
               style: TextStyle(
-                color: Colors.redAccent,
+                 color: Color(0xFFE01414),
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -343,7 +343,10 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
                         // En la vista expandida se vuelve a la vista normal.
                         if (_isTopExpanded)
                           GestureDetector(
-                            onTap: () => setState(() => _isTopExpanded = false),
+                             onTap: () => setState(() {
+                               _isTopExpanded = false;
+                               _isEditing = false;
+                             }),
                             behavior: HitTestBehavior.opaque,
                             child: _ButtonSvg('assets/buttons/back button.svg'),
                           )

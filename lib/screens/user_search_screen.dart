@@ -133,7 +133,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 
     if (_errorMessage != null) {
       return Center(
-        child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+        child: Text(_errorMessage!, style: const TextStyle(color: Color(0xFFE01414))),
       );
     }
 
