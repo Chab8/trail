@@ -725,8 +725,10 @@ class _MessageBubble extends StatelessWidget {
 }
 
 /// Dibuja la burbuja estilo iMessage: cuerpo con esquinas de radio 14,3 y
-/// una cola curva en la esquina inferior (derecha si es mío, izquierda si
-/// es de la otra persona).
+/// una cola en la esquina inferior (derecha si es mío, izquierda si
+/// es de la otra persona). Antes de la cola, el borde inferior sube
+/// suavemente formando una pequeña muesca, y la punta está apenas
+/// redondeada.
 class _BubblePainter extends CustomPainter {
   _BubblePainter({
     required this.color,
@@ -753,6 +755,14 @@ class _BubblePainter extends CustomPainter {
     final h = size.height;
     final right = size.width - tailWidth; // borde derecho del cuerpo
 
+    // La muesca ocupa unos 17 px hacia la izquierda del borde derecho.
+    // Si la burbuja es muy angosta (mensaje corto), la achicamos para
+    // que nunca pise la esquina inferior izquierda.
+    const notchSpan = 17.0;
+    final k = ((right - r) / notchSpan).clamp(0.0, 1.0);
+    // Devuelve la posición X a "d" píxeles a la izquierda del borde derecho.
+    double dx(double d) => right - d * k;
+
     final path = Path()
       // Arriba a la izquierda
       ..moveTo(r, 0)
@@ -760,19 +770,32 @@ class _BubblePainter extends CustomPainter {
       ..lineTo(right - r, 0)
       // Esquina superior derecha
       ..arcToPoint(Offset(right, r), radius: Radius.circular(r))
-      // Borde derecho, hasta donde empieza la cola
-      ..lineTo(right, h - 16)
-      // La cola: curva cóncava que sale hacia afuera hasta la punta
+      // Borde derecho, hasta donde empieza a curvarse hacia la cola
+      ..lineTo(right, h - 13)
+      // Curva hacia afuera hasta la punta de la cola
       ..cubicTo(
         right, h - 7,
-        right + 1.5, h - 2.5,
-        right + tailWidth, h,
+        right + tailWidth * 0.58, h - 2.8,
+        right + tailWidth, h - 0.4,
       )
-      // Vuelve por debajo hacia la izquierda con una leve curva
+      // Punta apenas redondeada
+      ..quadraticBezierTo(
+        right + tailWidth, h,
+        right + tailWidth - 0.6, h,
+      )
+      // Tramo plano de abajo, hasta justo antes de la muesca
+      ..lineTo(right - 1, h)
+      // El borde empieza a subir suavemente hasta la punta de la muesca
       ..cubicTo(
-        right + tailWidth - 3, h + 0.2,
-        right - 4, h,
-        right - 8, h,
+        dx(4.5), h,
+        dx(7), h - 1.0,
+        dx(9.3), h - 2.0,
+      )
+      // Y vuelve a bajar hasta el borde inferior normal
+      ..cubicTo(
+        dx(12), h - 1.0,
+        dx(14.5), h,
+        dx(17), h,
       )
       // Borde inferior
       ..lineTo(r, h)
