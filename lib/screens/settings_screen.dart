@@ -1,309 +1,237 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/user_profile.dart';
-import '../services/profile_service.dart';
-import '../services/spotify_service.dart';
-import 'follow_requests_screen.dart';
+import '../widgets/settings_header.dart';
+import 'account_management_screen.dart';
+import 'settings_section_screen.dart';
 import 'welcome_screen.dart';
 
-class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+/// Qué hace cada fila al tocarla.
+enum _ItemKind {
+  /// Abre una pantalla vacía con el nombre de la sección.
+  section,
 
-  @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  /// Abre "Manejo de la cuenta" (la configuración que ya existía).
+  account,
+
+  /// Cierra la sesión.
+  logout,
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
-  final _profileService = ProfileService();
-  final _usernameController = TextEditingController();
+class _SettingsItem {
+  const _SettingsItem(
+    this.title, {
+    this.kind = _ItemKind.section,
+    this.iconAsset,
+  });
 
-  bool _isLoading = true;
-  bool _isSaving = false;
-  bool _checkingSpotify = true;
-  bool _spotifyConnected = false;
-  bool _spotifyBusy = false;
-  bool _isPrivate = false;
-  bool _updatingPrivacy = false;
-  String? _userId;
-  String? _errorMessage;
-  String? _successMessage;
+  final String title;
+  final _ItemKind kind;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadSettings();
-  }
+  /// Ruta del ícono (ej: 'assets/icons/mi_icono.svg'). Por ahora es null:
+  /// el espacio del ícono queda reservado y vacío hasta que lo definamos.
+  final String? iconAsset;
+}
 
-  Future<void> _loadSettings() async {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return;
-    _userId = userId;
+class _SettingsGroup {
+  const _SettingsGroup(this.title, this.items);
 
-    try {
-      final results = await Future.wait<Object?>([
-        _profileService.getProfile(userId),
-        SpotifyService.instance.isConnected(),
-      ]);
-      final profile = results[0] as UserProfile?;
-      if (profile != null) {
-        _usernameController.text = profile.username;
-        _isPrivate = profile.isPrivate;
-      }
-      if (mounted) {
-        setState(() {
-          _spotifyConnected = results[1] as bool;
-          _checkingSpotify = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'No se pudo cargar la configuración.';
-          _checkingSpotify = false;
-        });
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+  final String title;
+  final List<_SettingsItem> items;
+}
+
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({super.key});
+
+  // ── Medidas de tu diseño ──────────────────────────────────────────────
+  static const double _sideMargin = 21;
+  static const double _textLeft = 71; // distancia del texto al borde izquierdo
+  static const double _rowHeight = 50; // alto de cada fila (texto + espacio)
+  static const double _iconLeftPadding = 12;
+
+  static const Color _colorMain = Color(0xFFFEFEFE);
+  static const Color _colorSub = Color(0xFF9C9C9C);
+  static const Color _colorDanger = Color(0xFFE01414);
+
+  static const List<_SettingsGroup> _groups = [
+    _SettingsGroup('Cuenta', [
+      _SettingsItem('Manejo de la cuenta', kind: _ItemKind.account),
+      _SettingsItem('Editar perfil'),
+      _SettingsItem('Información personal'),
+      _SettingsItem('Suscripción y pagos'),
+      _SettingsItem('Invitar amigos'),
+      _SettingsItem('Aplicaciones conectadas'),
+      _SettingsItem('Cambiar contraseña'),
+      _SettingsItem('Desactivar cuenta'),
+    ]),
+    _SettingsGroup('Privacidad', [
+      _SettingsItem('Privacidad del perfil'),
+      _SettingsItem('Privacidad de los trails'),
+      _SettingsItem('Zonas privadas'),
+      _SettingsItem('Datos y permisos'),
+      _SettingsItem('Visibilidad de actividad'),
+      _SettingsItem('Mensajes y solicitudes'),
+      _SettingsItem('Comentarios y menciones'),
+      _SettingsItem('Usuarios bloqueados y silenciados'),
+    ]),
+    _SettingsGroup('Seguridad', [
+      _SettingsItem('Verificación'),
+      _SettingsItem('Factor de doble autentificación'),
+      _SettingsItem('Sesiones activas'),
+    ]),
+    _SettingsGroup('Preferencias', [
+      _SettingsItem('Preferencias de la app'),
+      _SettingsItem('Idioma'),
+    ]),
+    _SettingsGroup('Notificaciones', [
+      _SettingsItem('Notificaciones'),
+    ]),
+    _SettingsGroup('Ayuda y soporte', [
+      _SettingsItem('Centro de ayuda'),
+      _SettingsItem('Reportar un problema'),
+      _SettingsItem('Mis reportes'),
+      _SettingsItem('Moderación y restricciones'),
+      _SettingsItem('Acerca de Trail'),
+      _SettingsItem('Legal'),
+    ]),
+    _SettingsGroup('Gestión de contenido', [
+      _SettingsItem('Trails eliminados'),
+      _SettingsItem('Co-Trails'),
+    ]),
+    _SettingsGroup('Salir', [
+      _SettingsItem('Cerrar sesión', kind: _ItemKind.logout),
+    ]),
+  ];
+
+  void _onItemTap(BuildContext context, _SettingsItem item) {
+    switch (item.kind) {
+      case _ItemKind.account:
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const AccountManagementScreen()),
+        );
+      case _ItemKind.section:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => SettingsSectionScreen(title: item.title),
+          ),
+        );
+      case _ItemKind.logout:
+        _logout(context);
     }
   }
 
-  Future<void> _saveUsername() async {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    final username = _usernameController.text.trim();
-    if (userId == null || username.isEmpty) return;
-
-    setState(() {
-      _isSaving = true;
-      _errorMessage = null;
-      _successMessage = null;
-    });
-
-    try {
-      await _profileService.updateUsername(userId: userId, username: username);
-      if (mounted) {
-        setState(() => _successMessage = 'Nombre de usuario actualizado.');
-      }
-    } on PostgrestException catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.code == '23505'
-              ? 'Ese nombre de usuario ya está en uso.'
-              : 'No se pudo guardar: ${e.message}';
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(
-          () => _errorMessage = 'No se pudo guardar el nombre de usuario.',
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  Future<void> _togglePrivacy(bool value) async {
-    final userId = _userId;
-    if (userId == null) return;
-
-    // Cambiamos el interruptor al toque (para que se sienta instantáneo)
-    // y lo volvemos atrás si falla el guardado.
-    setState(() {
-      _isPrivate = value;
-      _updatingPrivacy = true;
-    });
-
-    try {
-      await _profileService.updatePrivacy(userId: userId, isPrivate: value);
-    } catch (_) {
-      if (mounted) {
-        setState(() => _isPrivate = !value);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo actualizar la privacidad.')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _updatingPrivacy = false);
-    }
-  }
-
-  Future<void> _disconnectSpotify() async {
-    setState(() => _spotifyBusy = true);
-    try {
-      await SpotifyService.instance.disconnect();
-      if (mounted) {
-        setState(() => _spotifyConnected = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Spotify fue desconectado.')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo desconectar Spotify.')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _spotifyBusy = false);
-    }
-  }
-
-  Future<void> _logout() async {
+  Future<void> _logout(BuildContext context) async {
     await Supabase.instance.client.auth.signOut();
-    if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-        (route) => false,
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _usernameController.dispose();
-    super.dispose();
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+      (route) => false,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final children = <Widget>[];
+    for (final group in _groups) {
+      children.add(_buildDivider(group.title));
+      for (final item in group.items) {
+        children.add(_buildRow(context, item));
+      }
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Configuración')),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(
-                  24,
-                  24,
-                  24,
-                  MediaQuery.viewPaddingOf(context).bottom + 24,
-                ),
-                children: [
-                  const Text(
-                    'Cuenta',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _usernameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Usuario (@username)',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_errorMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        _errorMessage!,
-                         style: const TextStyle(color: Color(0xFFE01414)),
-                      ),
-                    ),
-                  if (_successMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        _successMessage!,
-                        style: const TextStyle(color: Colors.greenAccent),
-                      ),
-                    ),
-                  ElevatedButton(
-                    onPressed: _isSaving ? null : _saveUsername,
-                    child: _isSaving
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Guardar nombre de usuario'),
-                  ),
-                  const SizedBox(height: 32),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Privacidad',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Perfil privado'),
-                    subtitle: Text(
-                      _isPrivate
-                          ? 'Los nuevos seguidores necesitan tu aprobación.'
-                          : 'Cualquiera puede seguirte directamente.',
-                    ),
-                    value: _isPrivate,
-                    onChanged: _updatingPrivacy ? null : _togglePrivacy,
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.person_add_alt_1_outlined),
-                    title: const Text('Solicitudes de seguidor'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const FollowRequestsScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 32),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Música',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_checkingSpotify)
-                    const Center(child: CircularProgressIndicator())
-                  else
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        Icons.music_note,
-                        color: _spotifyConnected
-                            ? const Color(0xFF1DB954)
-                            : Colors.grey,
-                      ),
-                      title: Text(
-                        _spotifyConnected
-                            ? 'Spotify conectado'
-                            : 'Spotify no conectado',
-                      ),
-                      subtitle: Text(
-                        _spotifyConnected
-                            ? 'Podés desconectarlo cuando quieras.'
-                            : 'No hay una cuenta de Spotify conectada.',
-                      ),
-                      trailing: _spotifyBusy
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : _spotifyConnected
-                          ? TextButton(
-                              onPressed: _disconnectSpotify,
-                              child: const Text('Desconectar'),
-                            )
-                          : null,
-                    ),
-                  const SizedBox(height: 32),
-                  OutlinedButton.icon(
-                    onPressed: _logout,
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Cerrar sesión'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Color(0xFFE01414),
-                      side: const BorderSide(color: Color(0xFFE01414)),
-                    ),
-                  ),
-                ],
+      backgroundColor: SettingsHeader.backgroundColor,
+      body: Column(
+        children: [
+          const SettingsHeader(title: 'Configuración'),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.only(
+                top: 8,
+                bottom: MediaQuery.viewPaddingOf(context).bottom + 24,
               ),
+              children: children,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Texto divisor de sección (no se puede tocar).
+  Widget _buildDivider(String title) {
+    return SizedBox(
+      height: _rowHeight,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.only(left: _sideMargin),
+          child: Text(
+            title,
+            style: const TextStyle(
+              color: _colorSub,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Fila tocable: [espacio del ícono] [texto a 71px] [flecha a la derecha].
+  Widget _buildRow(BuildContext context, _SettingsItem item) {
+    final isLogout = item.kind == _ItemKind.logout;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _onItemTap(context, item),
+      child: SizedBox(
+        height: _rowHeight,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: _sideMargin),
+          child: Row(
+            children: [
+              // Espacio reservado para el ícono (llega justo hasta los 71px).
+              SizedBox(
+                width: _textLeft - _sideMargin,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: _iconLeftPadding),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: item.iconAsset == null
+                        ? const SizedBox.shrink()
+                        : SvgPicture.asset(
+                            item.iconAsset!,
+                            width: 24,
+                            height: 24,
+                          ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  item.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isLogout ? _colorDanger : _colorMain,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              if (!isLogout)
+                SvgPicture.asset(
+                  'assets/icons/right arrow.svg',
+                  width: 10,
+                  height: 17,
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
