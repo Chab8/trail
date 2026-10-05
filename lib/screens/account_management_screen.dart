@@ -1,3 +1,4 @@
+import 'package:country_picker/country_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -44,6 +45,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
   String _email = '';
   String _username = '';
   String _phone = '';
+  String? _countryCode;
   String? _userId;
 
   @override
@@ -64,6 +66,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
         setState(() {
           _username = profile?.username ?? '';
           _phone = profile?.phone ?? '';
+          _countryCode = profile?.countryCode;
           _isLoading = false;
         });
       }
@@ -130,9 +133,14 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                       const SizedBox(height: 38),
                       _AccountRow(
                         title: 'País',
-                        subtitle: '—',
+                        subtitle: _countryCode == null
+                            ? '—'
+                            : '${_countryFlag(_countryCode!)} ${CountryParser.parseCountryCode(_countryCode!).name}',
                         onTap: () => _push(
-                          const _PlaceholderScreen(title: 'País'),
+                          _CountryScreen(
+                            userId: _userId!,
+                            currentCode: _countryCode,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 38),
@@ -703,6 +711,170 @@ class _PasswordScreenState extends State<_PasswordScreen> {
                     onPressed: _saving ? null : _save,
                     saving: _saving,
                     label: 'Cambiar contraseña',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: convierte ISO-3166-1 alpha-2 en emoji de bandera
+// ─────────────────────────────────────────────────────────────────────────────
+String _countryFlag(String code) {
+  return code.toUpperCase().runes
+      .map((r) => String.fromCharCode(r + 0x1F1A5))
+      .join();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-pantalla: País (country_picker)
+// ─────────────────────────────────────────────────────────────────────────────
+class _CountryScreen extends StatefulWidget {
+  const _CountryScreen({required this.userId, this.currentCode});
+
+  final String userId;
+  final String? currentCode;
+
+  @override
+  State<_CountryScreen> createState() => _CountryScreenState();
+}
+
+class _CountryScreenState extends State<_CountryScreen> {
+  Country? _selected;
+  bool _saving = false;
+  String? _error;
+  String? _success;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.currentCode != null) {
+      try {
+        _selected = CountryParser.parseCountryCode(widget.currentCode!);
+      } catch (_) {
+        _selected = null;
+      }
+    }
+  }
+
+  Future<void> _save() async {
+    if (_selected == null) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+      _success = null;
+    });
+    try {
+      await Supabase.instance.client
+          .from('profiles')
+          .update({'country_code': _selected!.countryCode})
+          .eq('id', widget.userId);
+      if (mounted) setState(() => _success = 'País actualizado.');
+    } on PostgrestException catch (e) {
+      if (mounted) setState(() => _error = 'Error: ${e.message} [${e.code}]');
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Error: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+
+  void _openPicker() {
+    showCountryPicker(
+      context: context,
+      showPhoneCode: false,
+      countryListTheme: CountryListThemeData(
+        backgroundColor: const Color(0xFF141218),
+        textStyle: const TextStyle(color: _kMain, fontSize: 15),
+        searchTextStyle: const TextStyle(color: _kMain, fontSize: 15),
+        inputDecoration: InputDecoration(
+          hintText: 'Buscar país...',
+          hintStyle: const TextStyle(color: _kSub),
+          prefixIcon: const Icon(Icons.search, color: _kSub),
+          filled: true,
+          fillColor: const Color(0xFF1E1C22),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+        ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        bottomSheetHeight: MediaQuery.of(context).size.height * 0.75,
+      ),
+      onSelect: (Country c) {
+        setState(() {
+          _selected = c;
+          _success = null;
+          _error = null;
+        });
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _kBg,
+      body: Column(
+        children: [
+          const SettingsHeader(title: 'País'),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(21, 32, 21, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Selector tocable
+                  GestureDetector(
+                    onTap: _openPicker,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1C22),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _selected == null
+                                ? Text('Seleccionar país', style: _subStyle)
+                                : Text(
+                                    '${_countryFlag(_selected!.countryCode)}  ${_selected!.name}',
+                                    style: _titleStyle,
+                                  ),
+                          ),
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: _kSub,
+                            size: 22,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_error!,
+                        style: const TextStyle(color: _kDanger, fontSize: 13)),
+                  ],
+                  if (_success != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_success!,
+                        style: const TextStyle(
+                            color: Color(0xFF4CAF50), fontSize: 13)),
+                  ],
+                  const SizedBox(height: 24),
+                  _SaveButton(
+                    onPressed: (_saving || _selected == null) ? null : _save,
+                    saving: _saving,
                   ),
                 ],
               ),

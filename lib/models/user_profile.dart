@@ -5,6 +5,7 @@ class UserProfile {
   final String? avatarUrl;
   final bool isPrivate;
   final String? phone;
+  final String? countryCode;
   final DateTime? createdAt;
 
   UserProfile({
@@ -14,6 +15,7 @@ class UserProfile {
     this.avatarUrl,
     this.isPrivate = false,
     this.phone,
+    this.countryCode,
     this.createdAt,
   });
 
@@ -25,6 +27,7 @@ class UserProfile {
       avatarUrl: map['avatar_url'] as String?,
       isPrivate: map['is_private'] as bool? ?? false,
       phone: map['phone'] as String?,
+      countryCode: map['country_code'] as String?,
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'] as String)
           : null,
