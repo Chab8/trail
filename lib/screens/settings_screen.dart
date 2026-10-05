@@ -22,16 +22,15 @@ enum _ItemKind {
 class _SettingsItem {
   const _SettingsItem(
     this.title, {
+    required this.iconAsset,
     this.kind = _ItemKind.section,
-    this.iconAsset,
   });
 
   final String title;
   final _ItemKind kind;
 
-  /// Ruta del ícono (ej: 'assets/icons/mi_icono.svg'). Por ahora es null:
-  /// el espacio del ícono queda reservado y vacío hasta que lo definamos.
-  final String? iconAsset;
+  /// Ruta del ícono (ej: 'assets/icons/edit white icon.svg').
+  final String iconAsset;
 }
 
 class _SettingsGroup {
@@ -48,7 +47,14 @@ class SettingsScreen extends StatelessWidget {
   static const double _sideMargin = 21;
   static const double _textLeft = 71; // distancia del texto al borde izquierdo
   static const double _rowHeight = 50; // alto de cada fila (texto + espacio)
-  static const double _iconLeftPadding = 12;
+
+  /// Borde izquierdo común de TODOS los íconos. Los íconos tienen anchos
+  /// distintos, así que la alineación entre ellos manda sobre la distancia
+  /// ícono-texto: todos arrancan en el mismo x y de ahí se deriva el hueco.
+  /// El ícono más ancho ("view icon") mide ~24.85px, con lo que le quedan
+  /// ~21px hasta el texto; los más angostos dejan más separación.
+  static const double _iconLeft = 25;
+  static const double _iconHeight = 17; // alto fijo, el ancho sale del SVG
 
   static const Color _colorMain = Color(0xFFFEFEFE);
   static const Color _colorSub = Color(0xFF9C9C9C);
@@ -56,51 +62,140 @@ class SettingsScreen extends StatelessWidget {
 
   static const List<_SettingsGroup> _groups = [
     _SettingsGroup('Cuenta', [
-      _SettingsItem('Manejo de la cuenta', kind: _ItemKind.account),
-      _SettingsItem('Editar perfil'),
-      _SettingsItem('Información personal'),
-      _SettingsItem('Suscripción y pagos'),
-      _SettingsItem('Invitar amigos'),
-      _SettingsItem('Aplicaciones conectadas'),
-      _SettingsItem('Cambiar contraseña'),
-      _SettingsItem('Desactivar cuenta'),
+      _SettingsItem(
+        'Manejo de la cuenta',
+        iconAsset: 'assets/icons/person icon.svg',
+        kind: _ItemKind.account,
+      ),
+      _SettingsItem(
+        'Editar perfil',
+        iconAsset: 'assets/icons/edit white icon.svg',
+      ),
+      _SettingsItem(
+        'Información personal',
+        iconAsset: 'assets/icons/id white icon.svg',
+      ),
+      _SettingsItem(
+        'Suscripción y pagos',
+        iconAsset: 'assets/icons/star white icon.svg',
+      ),
+      _SettingsItem(
+        'Invitar amigos',
+        iconAsset: 'assets/icons/add person white icon.svg',
+      ),
+      _SettingsItem(
+        'Aplicaciones conectadas',
+        iconAsset: 'assets/icons/puzzle white icon.svg',
+      ),
+      _SettingsItem(
+        'Cambiar contraseña',
+        iconAsset: 'assets/icons/change password white icon.svg',
+      ),
+      _SettingsItem(
+        'Desactivar cuenta',
+        iconAsset: 'assets/icons/off white icon.svg',
+      ),
     ]),
     _SettingsGroup('Privacidad', [
-      _SettingsItem('Privacidad del perfil'),
-      _SettingsItem('Privacidad de los trails'),
-      _SettingsItem('Zonas privadas'),
-      _SettingsItem('Datos y permisos'),
-      _SettingsItem('Visibilidad de actividad'),
-      _SettingsItem('Mensajes y solicitudes'),
-      _SettingsItem('Comentarios y menciones'),
-      _SettingsItem('Usuarios bloqueados y silenciados'),
+      _SettingsItem(
+        'Privacidad del perfil',
+        iconAsset: 'assets/icons/lock white icon.svg',
+      ),
+      _SettingsItem(
+        'Privacidad de los trails',
+        iconAsset: 'assets/icons/private trail white icon.svg',
+      ),
+      _SettingsItem(
+        'Zonas privadas',
+        iconAsset: 'assets/icons/home white icon.svg',
+      ),
+      _SettingsItem(
+        'Datos y permisos',
+        iconAsset: 'assets/icons/data white icon.svg',
+      ),
+      _SettingsItem(
+        'Visibilidad de actividad',
+        iconAsset: 'assets/icons/view icon.svg',
+      ),
+      _SettingsItem(
+        'Mensajes y solicitudes',
+        iconAsset: 'assets/icons/message.svg',
+      ),
+      _SettingsItem(
+        'Comentarios y menciones',
+        iconAsset: 'assets/icons/@ white icon.svg',
+      ),
+      _SettingsItem(
+        'Usuarios bloqueados y silenciados',
+        iconAsset: 'assets/icons/blocked user white icon.svg',
+      ),
     ]),
     _SettingsGroup('Seguridad', [
-      _SettingsItem('Verificación'),
-      _SettingsItem('Factor de doble autentificación'),
-      _SettingsItem('Sesiones activas'),
+      _SettingsItem(
+        'Verificación',
+        iconAsset: 'assets/icons/verification white icon.svg',
+      ),
+      _SettingsItem(
+        'Factor de doble autentificación',
+        iconAsset: 'assets/icons/2fa white icon.svg',
+      ),
+      _SettingsItem(
+        'Sesiones activas',
+        iconAsset: 'assets/icons/computer white icon.svg',
+      ),
     ]),
     _SettingsGroup('Preferencias', [
-      _SettingsItem('Preferencias de la app'),
-      _SettingsItem('Idioma'),
+      _SettingsItem(
+        'Preferencias de la app',
+        iconAsset: 'assets/icons/phone white icon.svg',
+      ),
+      _SettingsItem('Idioma', iconAsset: 'assets/icons/public white icon.svg'),
     ]),
     _SettingsGroup('Notificaciones', [
-      _SettingsItem('Notificaciones'),
+      _SettingsItem(
+        'Notificaciones',
+        iconAsset: 'assets/icons/notification.svg',
+      ),
     ]),
     _SettingsGroup('Ayuda y soporte', [
-      _SettingsItem('Centro de ayuda'),
-      _SettingsItem('Reportar un problema'),
-      _SettingsItem('Mis reportes'),
-      _SettingsItem('Moderación y restricciones'),
-      _SettingsItem('Acerca de Trail'),
-      _SettingsItem('Legal'),
+      _SettingsItem(
+        'Centro de ayuda',
+        iconAsset: 'assets/icons/help white icon.svg',
+      ),
+      _SettingsItem(
+        'Reportar un problema',
+        iconAsset: 'assets/icons/error white icon.svg',
+      ),
+      _SettingsItem(
+        'Mis reportes',
+        iconAsset: 'assets/icons/folder white icon.svg',
+      ),
+      _SettingsItem(
+        'Moderación y restricciones',
+        iconAsset: 'assets/icons/shield white icon.svg',
+      ),
+      _SettingsItem(
+        'Acerca de Trail',
+        iconAsset: 'assets/icons/information white icon.svg',
+      ),
+      _SettingsItem('Legal', iconAsset: 'assets/icons/legal white icon.svg'),
     ]),
     _SettingsGroup('Gestión de contenido', [
-      _SettingsItem('Trails eliminados'),
-      _SettingsItem('Co-Trails'),
+      _SettingsItem(
+        'Trails eliminados',
+        iconAsset: 'assets/icons/delete white icon.svg',
+      ),
+      _SettingsItem(
+        'Co-Trails',
+        iconAsset: 'assets/icons/chain white icon.svg',
+      ),
     ]),
     _SettingsGroup('Salir', [
-      _SettingsItem('Cerrar sesión', kind: _ItemKind.logout),
+      _SettingsItem(
+        'Cerrar sesión',
+        iconAsset: 'assets/icons/exit red icon.svg',
+        kind: _ItemKind.logout,
+      ),
     ]),
   ];
 
@@ -180,7 +275,8 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  /// Fila tocable: [espacio del ícono] [texto a 71px] [flecha a la derecha].
+  /// Fila tocable: [ícono alineado a _iconLeft] [texto a _textLeft]
+  /// [flecha a la derecha].
   Widget _buildRow(BuildContext context, _SettingsItem item) {
     final isLogout = item.kind == _ItemKind.logout;
 
@@ -193,20 +289,22 @@ class SettingsScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: _sideMargin),
           child: Row(
             children: [
-              // Espacio reservado para el ícono (llega justo hasta los 71px).
+              // Slot fijo que termina justo en _textLeft: mantiene el texto
+              // siempre en el mismo lugar aunque el SVG aún no haya cargado.
+              // El ícono va pegado a _iconLeft para que todos compartan el
+              // mismo borde izquierdo, y toma su ancho natural del SVG.
               SizedBox(
                 width: _textLeft - _sideMargin,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: _iconLeftPadding),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: item.iconAsset == null
-                        ? const SizedBox.shrink()
-                        : SvgPicture.asset(
-                            item.iconAsset!,
-                            width: 24,
-                            height: 24,
-                          ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                      left: _iconLeft - _sideMargin,
+                    ),
+                    child: SvgPicture.asset(
+                      item.iconAsset,
+                      height: _iconHeight,
+                    ),
                   ),
                 ),
               ),
