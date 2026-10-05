@@ -4,6 +4,7 @@ class UserProfile {
   final String? spotifyId;
   final String? avatarUrl;
   final bool isPrivate;
+  final String? phone;
   final DateTime? createdAt;
 
   UserProfile({
@@ -12,6 +13,7 @@ class UserProfile {
     this.spotifyId,
     this.avatarUrl,
     this.isPrivate = false,
+    this.phone,
     this.createdAt,
   });
 
@@ -22,6 +24,7 @@ class UserProfile {
       spotifyId: map['spotify_id'] as String?,
       avatarUrl: map['avatar_url'] as String?,
       isPrivate: map['is_private'] as bool? ?? false,
+      phone: map['phone'] as String?,
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'] as String)
           : null,

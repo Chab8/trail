@@ -1,15 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/user_profile.dart';
 import '../services/profile_service.dart';
-import '../services/spotify_service.dart';
 import '../widgets/settings_header.dart';
-import 'follow_requests_screen.dart';
 
-/// "Manejo de la cuenta": acá viven las opciones que antes estaban en la
-/// pantalla de Configuración (nombre de usuario, privacidad, solicitudes de
-/// seguidor y conexión con Spotify).
+// ─────────────────────────────────────────────────────────────────────────────
+// Colores y estilos compartidos
+// ─────────────────────────────────────────────────────────────────────────────
+const Color _kMain = Color(0xFFFEFEFE);
+const Color _kSub = Color(0xFF9C9C9C);
+const Color _kDanger = Color(0xFFE01414);
+const Color _kBg = Color(0xFF09080B);
+
+TextStyle get _titleStyle => const TextStyle(
+      color: _kMain,
+      fontSize: 16,
+      fontWeight: FontWeight.w500,
+    );
+
+TextStyle get _subStyle => const TextStyle(
+      color: _kSub,
+      fontSize: 12,
+      fontWeight: FontWeight.w500,
+    );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pantalla principal: Manejo de la cuenta
+// ─────────────────────────────────────────────────────────────────────────────
 class AccountManagementScreen extends StatefulWidget {
   const AccountManagementScreen({super.key});
 
@@ -20,149 +39,52 @@ class AccountManagementScreen extends StatefulWidget {
 
 class _AccountManagementScreenState extends State<AccountManagementScreen> {
   final _profileService = ProfileService();
-  final _usernameController = TextEditingController();
 
   bool _isLoading = true;
-  bool _isSaving = false;
-  bool _checkingSpotify = true;
-  bool _spotifyConnected = false;
-  bool _spotifyBusy = false;
-  bool _isPrivate = false;
-  bool _updatingPrivacy = false;
+  String _email = '';
+  String _username = '';
+  String _phone = '';
   String? _userId;
-  String? _errorMessage;
-  String? _successMessage;
 
   @override
   void initState() {
     super.initState();
-    _loadSettings();
+    _loadData();
   }
 
-  Future<void> _loadSettings() async {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return;
-    _userId = userId;
+  Future<void> _loadData() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    _userId = user.id;
+    _email = user.email ?? '';
 
     try {
-      final results = await Future.wait<Object?>([
-        _profileService.getProfile(userId),
-        SpotifyService.instance.isConnected(),
-      ]);
-      final profile = results[0] as UserProfile?;
-      if (profile != null) {
-        _usernameController.text = profile.username;
-        _isPrivate = profile.isPrivate;
-      }
+      final profile = await _profileService.getProfile(user.id);
       if (mounted) {
         setState(() {
-          _spotifyConnected = results[1] as bool;
-          _checkingSpotify = false;
+          _username = profile?.username ?? '';
+          _phone = profile?.phone ?? '';
+          _isLoading = false;
         });
       }
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'No se pudo cargar la configuración.';
-          _checkingSpotify = false;
-        });
-      }
-    } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _saveUsername() async {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    final username = _usernameController.text.trim();
-    if (userId == null || username.isEmpty) return;
-
-    setState(() {
-      _isSaving = true;
-      _errorMessage = null;
-      _successMessage = null;
-    });
-
-    try {
-      await _profileService.updateUsername(userId: userId, username: username);
-      if (mounted) {
-        setState(() => _successMessage = 'Nombre de usuario actualizado.');
-      }
-    } on PostgrestException catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.code == '23505'
-              ? 'Ese nombre de usuario ya está en uso.'
-              : 'No se pudo guardar: ${e.message}';
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(
-          () => _errorMessage = 'No se pudo guardar el nombre de usuario.',
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  Future<void> _togglePrivacy(bool value) async {
-    final userId = _userId;
-    if (userId == null) return;
-
-    // Cambiamos el interruptor al toque (para que se sienta instantáneo)
-    // y lo volvemos atrás si falla el guardado.
-    setState(() {
-      _isPrivate = value;
-      _updatingPrivacy = true;
-    });
-
-    try {
-      await _profileService.updatePrivacy(userId: userId, isPrivate: value);
-    } catch (_) {
-      if (mounted) {
-        setState(() => _isPrivate = !value);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo actualizar la privacidad.')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _updatingPrivacy = false);
-    }
-  }
-
-  Future<void> _disconnectSpotify() async {
-    setState(() => _spotifyBusy = true);
-    try {
-      await SpotifyService.instance.disconnect();
-      if (mounted) {
-        setState(() => _spotifyConnected = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Spotify fue desconectado.')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo desconectar Spotify.')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _spotifyBusy = false);
-    }
-  }
-
-  @override
-  void dispose() {
-    _usernameController.dispose();
-    super.dispose();
+  Future<void> _push(Widget screen) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => screen),
+    );
+    _loadData();
   }
 
   @override
   Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.viewPaddingOf(context).bottom;
+
     return Scaffold(
-      backgroundColor: SettingsHeader.backgroundColor,
+      backgroundColor: _kBg,
       body: Column(
         children: [
           const SettingsHeader(title: 'Manejo de la cuenta'),
@@ -170,141 +92,734 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : ListView(
-                    padding: EdgeInsets.fromLTRB(
-                      24,
-                      24,
-                      24,
-                      MediaQuery.viewPaddingOf(context).bottom + 24,
-                    ),
+                    padding: EdgeInsets.fromLTRB(21, 32, 21, bottomPad + 32),
                     children: [
-                      const Text(
-                        'Cuenta',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      _AccountRow(
+                        title: 'Email',
+                        subtitle: _email.isEmpty ? '—' : _email,
+                        onTap: () => _push(const _EmailScreen()),
                       ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _usernameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Usuario (@username)',
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      if (_errorMessage != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          child: Text(
-                            _errorMessage!,
-                            style: const TextStyle(color: Color(0xFFE01414)),
+                      const SizedBox(height: 38),
+                      _AccountRow(
+                        title: 'Nombre de usuario',
+                        subtitle: _username.isEmpty ? '—' : _username,
+                        onTap: () => _push(
+                          _UsernameScreen(
+                            userId: _userId!,
+                            currentUsername: _username,
                           ),
                         ),
-                      if (_successMessage != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          child: Text(
-                            _successMessage!,
-                            style: const TextStyle(color: Colors.greenAccent),
+                      ),
+                      const SizedBox(height: 38),
+                      _AccountRow(
+                        title: 'Teléfono',
+                        subtitle: _phone.isEmpty ? '—' : _phone,
+                        onTap: () => _push(
+                          _PhoneScreen(
+                            userId: _userId!,
+                            currentPhone: _phone,
                           ),
                         ),
-                      ElevatedButton(
-                        onPressed: _isSaving ? null : _saveUsername,
-                        child: _isSaving
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Guardar nombre de usuario'),
                       ),
-                      const SizedBox(height: 32),
-                      const Divider(),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Privacidad',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                      const SizedBox(height: 38),
+                      _AccountRow(
+                        title: 'Contraseña',
+                        subtitle: '••••••••••',
+                        onTap: () => _push(const _PasswordScreen()),
+                      ),
+                      const SizedBox(height: 38),
+                      _AccountRow(
+                        title: 'País',
+                        subtitle: '—',
+                        onTap: () => _push(
+                          const _PlaceholderScreen(title: 'País'),
                         ),
                       ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Perfil privado'),
-                        subtitle: Text(
-                          _isPrivate
-                              ? 'Los nuevos seguidores necesitan tu aprobación.'
-                              : 'Cualquiera puede seguirte directamente.',
+                      const SizedBox(height: 38),
+                      _IdRow(userId: _userId ?? ''),
+                      const SizedBox(height: 46),
+                      _SingleRow(
+                        title: 'Descargar mis datos',
+                        onTap: () => _push(
+                          const _PlaceholderScreen(title: 'Descargar mis datos'),
                         ),
-                        value: _isPrivate,
-                        onChanged: _updatingPrivacy ? null : _togglePrivacy,
                       ),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.person_add_alt_1_outlined),
-                        title: const Text('Solicitudes de seguidor'),
-                        trailing: const Icon(Icons.chevron_right),
+                      const SizedBox(height: 46),
+                      _SingleRow(
+                        title: 'Cerrar sesión en todos los dispositivos',
+                        onTap: () => _push(
+                          const _PlaceholderScreen(
+                            title: 'Cerrar sesión en todos los dispositivos',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 46),
+                      _SingleRow(
+                        title: 'Desactivar cuenta temporalmente',
+                        onTap: () => _push(
+                          const _PlaceholderScreen(
+                            title: 'Desactivar cuenta temporalmente',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 46),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const FollowRequestsScreen(),
-                            ),
-                          );
+                          // Funcionalidad pendiente
                         },
-                      ),
-                      const SizedBox(height: 32),
-                      const Divider(),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Música',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                        child: const Text(
+                          'Eliminar cuenta',
+                          style: TextStyle(
+                            color: _kDanger,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      if (_checkingSpotify)
-                        const Center(child: CircularProgressIndicator())
-                      else
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            Icons.music_note,
-                            color: _spotifyConnected
-                                ? const Color(0xFF1DB954)
-                                : Colors.grey,
-                          ),
-                          title: Text(
-                            _spotifyConnected
-                                ? 'Spotify conectado'
-                                : 'Spotify no conectado',
-                          ),
-                          subtitle: Text(
-                            _spotifyConnected
-                                ? 'Podés desconectarlo cuando quieras.'
-                                : 'No hay una cuenta de Spotify conectada.',
-                          ),
-                          trailing: _spotifyBusy
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : _spotifyConnected
-                              ? TextButton(
-                                  onPressed: _disconnectSpotify,
-                                  child: const Text('Desconectar'),
-                                )
-                              : null,
-                        ),
                     ],
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Widgets de fila
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AccountRow extends StatelessWidget {
+  const _AccountRow({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: _titleStyle),
+                const SizedBox(height: 12),
+                Text(subtitle, style: _subStyle),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: SvgPicture.asset(
+              'assets/icons/right arrow.svg',
+              height: 17,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SingleRow extends StatelessWidget {
+  const _SingleRow({required this.title, required this.onTap});
+
+  final String title;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Row(
+        children: [
+          Expanded(child: Text(title, style: _titleStyle)),
+          SvgPicture.asset('assets/icons/right arrow.svg', height: 17),
+        ],
+      ),
+    );
+  }
+}
+
+class _IdRow extends StatelessWidget {
+  const _IdRow({required this.userId});
+
+  final String userId;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayId = userId.length > 8
+        ? userId.substring(0, 8).toUpperCase()
+        : userId.toUpperCase();
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('ID del usuario', style: _titleStyle),
+              const SizedBox(height: 12),
+              Text(displayId, style: _subStyle),
+            ],
+          ),
+        ),
+        GestureDetector(
+          onTap: () {
+            Clipboard.setData(ClipboardData(text: userId));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('ID copiado al portapapeles'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            decoration: BoxDecoration(
+              color: _kMain,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Text(
+              'Copiar',
+              style: TextStyle(
+                color: _kBg,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-pantalla: Email (solo lectura)
+// ─────────────────────────────────────────────────────────────────────────────
+class _EmailScreen extends StatelessWidget {
+  const _EmailScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final email = Supabase.instance.client.auth.currentUser?.email ?? '';
+
+    return Scaffold(
+      backgroundColor: _kBg,
+      body: Column(
+        children: [
+          const SettingsHeader(title: 'Email'),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(21, 32, 21, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Email actual', style: _subStyle),
+                  const SizedBox(height: 12),
+                  Text(email.isEmpty ? '—' : email, style: _titleStyle),
+                  const SizedBox(height: 32),
+                  Text(
+                    'La posibilidad de cambiar el email estará disponible próximamente.',
+                    style: _subStyle,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-pantalla: Nombre de usuario (editable)
+// ─────────────────────────────────────────────────────────────────────────────
+class _UsernameScreen extends StatefulWidget {
+  const _UsernameScreen({
+    required this.userId,
+    required this.currentUsername,
+  });
+
+  final String userId;
+  final String currentUsername;
+
+  @override
+  State<_UsernameScreen> createState() => _UsernameScreenState();
+}
+
+class _UsernameScreenState extends State<_UsernameScreen> {
+  late final TextEditingController _ctrl;
+  final _profileService = ProfileService();
+  bool _saving = false;
+  String? _error;
+  String? _success;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.currentUsername);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final username = _ctrl.text.trim();
+    if (username.isEmpty) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+      _success = null;
+    });
+    try {
+      await _profileService.updateUsername(
+        userId: widget.userId,
+        username: username,
+      );
+      if (mounted) setState(() => _success = 'Nombre de usuario actualizado.');
+    } on PostgrestException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.code == '23505'
+              ? 'Ese nombre de usuario ya está en uso.'
+              : 'No se pudo guardar: ${e.message}';
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = 'No se pudo guardar.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _kBg,
+      body: Column(
+        children: [
+          const SettingsHeader(title: 'Nombre de usuario'),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(21, 32, 21, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _StyledTextField(
+                    controller: _ctrl,
+                    label: 'Nombre de usuario',
+                    keyboardType: TextInputType.text,
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_error!,
+                        style: const TextStyle(color: _kDanger, fontSize: 13)),
+                  ],
+                  if (_success != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_success!,
+                        style: const TextStyle(
+                            color: Color(0xFF4CAF50), fontSize: 13)),
+                  ],
+                  const SizedBox(height: 24),
+                  _SaveButton(onPressed: _saving ? null : _save, saving: _saving),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-pantalla: Teléfono (editable)
+// ─────────────────────────────────────────────────────────────────────────────
+class _PhoneScreen extends StatefulWidget {
+  const _PhoneScreen({required this.userId, required this.currentPhone});
+
+  final String userId;
+  final String currentPhone;
+
+  @override
+  State<_PhoneScreen> createState() => _PhoneScreenState();
+}
+
+class _PhoneScreenState extends State<_PhoneScreen> {
+  late final TextEditingController _ctrl;
+  bool _saving = false;
+  String? _error;
+  String? _success;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.currentPhone);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final phone = _ctrl.text.trim();
+    setState(() {
+      _saving = true;
+      _error = null;
+      _success = null;
+    });
+    try {
+      await Supabase.instance.client
+          .from('profiles')
+          .update({'phone': phone}).eq('id', widget.userId);
+      if (mounted) setState(() => _success = 'Teléfono actualizado.');
+    } catch (_) {
+      if (mounted) setState(() => _error = 'No se pudo guardar el teléfono.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _kBg,
+      body: Column(
+        children: [
+          const SettingsHeader(title: 'Teléfono'),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(21, 32, 21, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _StyledTextField(
+                    controller: _ctrl,
+                    label: 'Número de teléfono',
+                    keyboardType: TextInputType.phone,
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_error!,
+                        style: const TextStyle(color: _kDanger, fontSize: 13)),
+                  ],
+                  if (_success != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_success!,
+                        style: const TextStyle(
+                            color: Color(0xFF4CAF50), fontSize: 13)),
+                  ],
+                  const SizedBox(height: 24),
+                  _SaveButton(onPressed: _saving ? null : _save, saving: _saving),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-pantalla: Contraseña (cambio con vieja + nueva + confirmar)
+// ─────────────────────────────────────────────────────────────────────────────
+class _PasswordScreen extends StatefulWidget {
+  const _PasswordScreen();
+
+  @override
+  State<_PasswordScreen> createState() => _PasswordScreenState();
+}
+
+class _PasswordScreenState extends State<_PasswordScreen> {
+  final _oldCtrl = TextEditingController();
+  final _newCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  bool _saving = false;
+  bool _showOld = false;
+  bool _showNew = false;
+  bool _showConfirm = false;
+  String? _error;
+  String? _success;
+
+  @override
+  void dispose() {
+    _oldCtrl.dispose();
+    _newCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final oldPwd = _oldCtrl.text;
+    final newPwd = _newCtrl.text;
+    final confirmPwd = _confirmCtrl.text;
+
+    if (oldPwd.isEmpty || newPwd.isEmpty || confirmPwd.isEmpty) {
+      setState(() => _error = 'Completá todos los campos.');
+      return;
+    }
+    if (newPwd != confirmPwd) {
+      setState(() => _error = 'Las contraseñas nuevas no coinciden.');
+      return;
+    }
+    if (newPwd.length < 6) {
+      setState(() =>
+          _error = 'La nueva contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _error = null;
+      _success = null;
+    });
+
+    try {
+      final email =
+          Supabase.instance.client.auth.currentUser?.email ?? '';
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: oldPwd,
+      );
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(password: newPwd),
+      );
+      if (mounted) {
+        setState(() => _success = 'Contraseña actualizada correctamente.');
+        _oldCtrl.clear();
+        _newCtrl.clear();
+        _confirmCtrl.clear();
+      }
+    } on AuthException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.message.contains('Invalid login')
+              ? 'La contraseña actual es incorrecta.'
+              : 'Error: ${e.message}';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'No se pudo actualizar la contraseña.');
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _kBg,
+      body: Column(
+        children: [
+          const SettingsHeader(title: 'Contraseña'),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(21, 32, 21, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _StyledTextField(
+                    controller: _oldCtrl,
+                    label: 'Contraseña actual',
+                    obscure: !_showOld,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showOld ? Icons.visibility_off : Icons.visibility,
+                        color: _kSub,
+                        size: 20,
+                      ),
+                      onPressed: () => setState(() => _showOld = !_showOld),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _StyledTextField(
+                    controller: _newCtrl,
+                    label: 'Nueva contraseña',
+                    obscure: !_showNew,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showNew ? Icons.visibility_off : Icons.visibility,
+                        color: _kSub,
+                        size: 20,
+                      ),
+                      onPressed: () => setState(() => _showNew = !_showNew),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _StyledTextField(
+                    controller: _confirmCtrl,
+                    label: 'Repetir nueva contraseña',
+                    obscure: !_showConfirm,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showConfirm
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: _kSub,
+                        size: 20,
+                      ),
+                      onPressed: () =>
+                          setState(() => _showConfirm = !_showConfirm),
+                    ),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 16),
+                    Text(_error!,
+                        style: const TextStyle(color: _kDanger, fontSize: 13)),
+                  ],
+                  if (_success != null) ...[
+                    const SizedBox(height: 16),
+                    Text(_success!,
+                        style: const TextStyle(
+                            color: Color(0xFF4CAF50), fontSize: 13)),
+                  ],
+                  const SizedBox(height: 32),
+                  _SaveButton(
+                    onPressed: _saving ? null : _save,
+                    saving: _saving,
+                    label: 'Cambiar contraseña',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-pantalla placeholder
+// ─────────────────────────────────────────────────────────────────────────────
+class _PlaceholderScreen extends StatelessWidget {
+  const _PlaceholderScreen({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _kBg,
+      body: Column(
+        children: [
+          SettingsHeader(title: title),
+          const Expanded(child: SizedBox()),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Widgets auxiliares
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _StyledTextField extends StatelessWidget {
+  const _StyledTextField({
+    required this.controller,
+    required this.label,
+    this.keyboardType,
+    this.obscure = false,
+    this.suffixIcon,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final TextInputType? keyboardType;
+  final bool obscure;
+  final Widget? suffixIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      obscureText: obscure,
+      style: const TextStyle(color: _kMain, fontSize: 15),
+      cursorColor: _kMain,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: _kSub, fontSize: 14),
+        suffixIcon: suffixIcon,
+        enabledBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFF3A3A3A)),
+        ),
+        focusedBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: _kMain),
+        ),
+      ),
+    );
+  }
+}
+
+class _SaveButton extends StatelessWidget {
+  const _SaveButton({
+    required this.onPressed,
+    required this.saving,
+    this.label = 'Guardar',
+  });
+
+  final VoidCallback? onPressed;
+  final bool saving;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _kMain,
+          foregroundColor: _kBg,
+          disabledBackgroundColor: const Color(0xFF3A3A3A),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: saving
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: _kBg,
+                ),
+              )
+            : Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
       ),
     );
   }
