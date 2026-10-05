@@ -48,13 +48,20 @@ class SettingsScreen extends StatelessWidget {
   static const double _textLeft = 71; // distancia del texto al borde izquierdo
   static const double _rowHeight = 50; // alto de cada fila (texto + espacio)
 
-  /// Borde izquierdo común de TODOS los íconos. Los íconos tienen anchos
-  /// distintos, así que la alineación entre ellos manda sobre la distancia
-  /// ícono-texto: todos arrancan en el mismo x y de ahí se deriva el hueco.
-  /// El ícono más ancho ("view icon") mide ~24.85px, con lo que le quedan
-  /// ~21px hasta el texto; los más angostos dejan más separación.
-  static const double _iconLeft = 25;
+  /// Eje común de TODOS los íconos: cada uno se centra en [_iconCenter],
+  /// así que arrancan y terminan en lugares distintos según su ancho, pero
+  /// forman una columna centrada. [_iconCenter] se elige para que el ícono más
+  /// ancho ("id white icon", 25px) quede a ~23px del texto; los más angostos
+  /// dejan más hueco (hasta ~30px para "phone white icon", 11px).
+  static const double _iconCenter = 35.5;
   static const double _iconHeight = 17; // alto fijo, el ancho sale del SVG
+
+  /// Ubica el centro del ícono en [_iconCenter] dentro del slot de la fila,
+  /// que va de [_sideMargin] a [_textLeft].
+  static const Alignment _iconAlignment = Alignment(
+    (_iconCenter - _sideMargin) / (_textLeft - _sideMargin),
+    0,
+  );
 
   static const Color _colorMain = Color(0xFFFEFEFE);
   static const Color _colorSub = Color(0xFF9C9C9C);
@@ -275,7 +282,7 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  /// Fila tocable: [ícono alineado a _iconLeft] [texto a _textLeft]
+  /// Fila tocable: [ícono centrado en _iconCenter] [texto a _textLeft]
   /// [flecha a la derecha].
   Widget _buildRow(BuildContext context, _SettingsItem item) {
     final isLogout = item.kind == _ItemKind.logout;
@@ -291,21 +298,13 @@ class SettingsScreen extends StatelessWidget {
             children: [
               // Slot fijo que termina justo en _textLeft: mantiene el texto
               // siempre en el mismo lugar aunque el SVG aún no haya cargado.
-              // El ícono va pegado a _iconLeft para que todos compartan el
-              // mismo borde izquierdo, y toma su ancho natural del SVG.
+              // El ícono se pega a _iconCenter, así que todos comparten el
+              // mismo centro (no el mismo borde) y toma su ancho natural.
               SizedBox(
                 width: _textLeft - _sideMargin,
                 child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Padding(
-                    padding: const EdgeInsets.only(
-                      left: _iconLeft - _sideMargin,
-                    ),
-                    child: SvgPicture.asset(
-                      item.iconAsset,
-                      height: _iconHeight,
-                    ),
-                  ),
+                  alignment: _iconAlignment,
+                  child: SvgPicture.asset(item.iconAsset, height: _iconHeight),
                 ),
               ),
               Expanded(
