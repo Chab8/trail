@@ -15,17 +15,11 @@ const Color _kSub = Color(0xFF9C9C9C);
 const Color _kDanger = Color(0xFFE01414);
 const Color _kBg = Color(0xFF09080B);
 
-TextStyle get _titleStyle => const TextStyle(
-      color: _kMain,
-      fontSize: 16,
-      fontWeight: FontWeight.w500,
-    );
+TextStyle get _titleStyle =>
+    const TextStyle(color: _kMain, fontSize: 16, fontWeight: FontWeight.w500);
 
-TextStyle get _subStyle => const TextStyle(
-      color: _kSub,
-      fontSize: 12,
-      fontWeight: FontWeight.w500,
-    );
+TextStyle get _subStyle =>
+    const TextStyle(color: _kSub, fontSize: 12, fontWeight: FontWeight.w500);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pantalla principal: Manejo de la cuenta
@@ -76,9 +70,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
   }
 
   Future<void> _push(Widget screen) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => screen),
-    );
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
     _loadData();
   }
 
@@ -121,6 +113,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           _PhoneScreen(
                             userId: _userId!,
                             currentPhone: _phone,
+                            defaultCountryCode: _countryCode,
                           ),
                         ),
                       ),
@@ -149,7 +142,9 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                       _SingleRow(
                         title: 'Descargar mis datos',
                         onTap: () => _push(
-                          const _PlaceholderScreen(title: 'Descargar mis datos'),
+                          const _PlaceholderScreen(
+                            title: 'Descargar mis datos',
+                          ),
                         ),
                       ),
                       const SizedBox(height: 46),
@@ -215,7 +210,9 @@ class _AccountRow extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        // El arrow se centra verticalmente en todo el bloque (título + hueco +
+        // subtítulo), así que queda a la mitad entre ambos textos.
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Column(
@@ -227,13 +224,7 @@ class _AccountRow extends StatelessWidget {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: SvgPicture.asset(
-              'assets/icons/right arrow.svg',
-              height: 17,
-            ),
-          ),
+          SvgPicture.asset('assets/icons/right arrow.svg', height: 17),
         ],
       ),
     );
@@ -359,10 +350,7 @@ class _EmailScreen extends StatelessWidget {
 // Sub-pantalla: Nombre de usuario (editable)
 // ─────────────────────────────────────────────────────────────────────────────
 class _UsernameScreen extends StatefulWidget {
-  const _UsernameScreen({
-    required this.userId,
-    required this.currentUsername,
-  });
+  const _UsernameScreen({required this.userId, required this.currentUsername});
 
   final String userId;
   final String currentUsername;
@@ -439,17 +427,26 @@ class _UsernameScreenState extends State<_UsernameScreen> {
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
-                    Text(_error!,
-                        style: const TextStyle(color: _kDanger, fontSize: 13)),
+                    Text(
+                      _error!,
+                      style: const TextStyle(color: _kDanger, fontSize: 13),
+                    ),
                   ],
                   if (_success != null) ...[
                     const SizedBox(height: 12),
-                    Text(_success!,
-                        style: const TextStyle(
-                            color: Color(0xFF4CAF50), fontSize: 13)),
+                    Text(
+                      _success!,
+                      style: const TextStyle(
+                        color: Color(0xFF4CAF50),
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 24),
-                  _SaveButton(onPressed: _saving ? null : _save, saving: _saving),
+                  _SaveButton(
+                    onPressed: _saving ? null : _save,
+                    saving: _saving,
+                  ),
                 ],
               ),
             ),
@@ -461,13 +458,21 @@ class _UsernameScreenState extends State<_UsernameScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sub-pantalla: Teléfono (editable)
+// Sub-pantalla: Teléfono (con selector de código de país)
 // ─────────────────────────────────────────────────────────────────────────────
 class _PhoneScreen extends StatefulWidget {
-  const _PhoneScreen({required this.userId, required this.currentPhone});
+  const _PhoneScreen({
+    required this.userId,
+    required this.currentPhone,
+    this.defaultCountryCode,
+  });
 
   final String userId;
   final String currentPhone;
+
+  /// Código ISO del país ya guardado en el perfil. Se usa solo como
+  /// valor inicial del selector de código telefónico.
+  final String? defaultCountryCode;
 
   @override
   State<_PhoneScreen> createState() => _PhoneScreenState();
@@ -475,6 +480,7 @@ class _PhoneScreen extends StatefulWidget {
 
 class _PhoneScreenState extends State<_PhoneScreen> {
   late final TextEditingController _ctrl;
+  Country? _dialCountry;
   bool _saving = false;
   String? _error;
   String? _success;
@@ -482,7 +488,47 @@ class _PhoneScreenState extends State<_PhoneScreen> {
   @override
   void initState() {
     super.initState();
-    _ctrl = TextEditingController(text: widget.currentPhone);
+
+    // Intentamos pre-seleccionar el código del país guardado.
+    // Si el número ya tiene un prefijo (+XX...) lo extraemos y buscamos
+    // el país por código telefónico; si no, usamos el país del perfil.
+    final stored = widget.currentPhone.trim();
+    Country? preselected;
+
+    if (stored.startsWith('+')) {
+      // Detectar el dial code a partir del número guardado
+      try {
+        final allCountries = CountryService().getAll();
+        // Ordenar del más largo al más corto para mayor precisión
+        final sorted = List<Country>.from(allCountries)
+          ..sort((a, b) => b.phoneCode.length.compareTo(a.phoneCode.length));
+        for (final c in sorted) {
+          if (stored.startsWith('+${c.phoneCode}')) {
+            preselected = c;
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Si no se detectó por el número, usar el país del perfil como default.
+    if (preselected == null && widget.defaultCountryCode != null) {
+      try {
+        preselected = CountryParser.parseCountryCode(
+          widget.defaultCountryCode!,
+        );
+      } catch (_) {}
+    }
+
+    _dialCountry = preselected;
+
+    // El campo de texto solo muestra la parte local (sin prefijo).
+    String localNumber = stored;
+    if (_dialCountry != null &&
+        stored.startsWith('+${_dialCountry!.phoneCode}')) {
+      localNumber = stored.substring(_dialCountry!.phoneCode.length + 1).trim();
+    }
+    _ctrl = TextEditingController(text: localNumber);
   }
 
   @override
@@ -491,8 +537,41 @@ class _PhoneScreenState extends State<_PhoneScreen> {
     super.dispose();
   }
 
+  void _openDialPicker() {
+    showCountryPicker(
+      context: context,
+      showPhoneCode: true,
+      countryListTheme: CountryListThemeData(
+        backgroundColor: const Color(0xFF141218),
+        textStyle: const TextStyle(color: _kMain, fontSize: 15),
+        searchTextStyle: const TextStyle(color: _kMain, fontSize: 15),
+        inputDecoration: InputDecoration(
+          hintText: 'Buscar país...',
+          hintStyle: const TextStyle(color: _kSub),
+          prefixIcon: const Icon(Icons.search, color: _kSub),
+          filled: true,
+          fillColor: const Color(0xFF1E1C22),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+        ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        bottomSheetHeight: MediaQuery.of(context).size.height * 0.75,
+      ),
+      onSelect: (Country c) => setState(() => _dialCountry = c),
+    );
+  }
+
   Future<void> _save() async {
-    final phone = _ctrl.text.trim();
+    final local = _ctrl.text.trim();
+    if (local.isEmpty) return;
+
+    // Guardar en formato internacional si se eligió código.
+    final fullPhone = _dialCountry != null
+        ? '+${_dialCountry!.phoneCode} $local'
+        : local;
+
     setState(() {
       _saving = true;
       _error = null;
@@ -501,10 +580,15 @@ class _PhoneScreenState extends State<_PhoneScreen> {
     try {
       await Supabase.instance.client
           .from('profiles')
-          .update({'phone': phone}).eq('id', widget.userId);
+          .update({'phone': fullPhone})
+          .eq('id', widget.userId);
       if (mounted) setState(() => _success = 'Teléfono actualizado.');
-    } catch (_) {
-      if (mounted) setState(() => _error = 'No se pudo guardar el teléfono.');
+    } on PostgrestException catch (e) {
+      if (mounted) {
+        setState(() => _error = 'Error: ${e.message} [${e.code}]');
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Error: $e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -523,24 +607,105 @@ class _PhoneScreenState extends State<_PhoneScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _StyledTextField(
-                    controller: _ctrl,
-                    label: 'Número de teléfono',
-                    keyboardType: TextInputType.phone,
+                  // ── Fila: [selector código] | [campo número] ─────────────
+                  Container(
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(color: Color(0xFF3A3A3A)),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Selector de código
+                        GestureDetector(
+                          onTap: _openDialPicker,
+                          child: Padding(
+                            padding: const EdgeInsets.only(
+                              top: 16,
+                              bottom: 12,
+                              right: 12,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _dialCountry == null
+                                      ? '🏳️'
+                                      : _countryFlag(_dialCountry!.countryCode),
+                                  style: const TextStyle(fontSize: 22),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _dialCountry == null
+                                      ? '+--'
+                                      : '+${_dialCountry!.phoneCode}',
+                                  style: const TextStyle(
+                                    color: _kMain,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: _kSub,
+                                  size: 18,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // Divisor vertical
+                        Container(
+                          width: 1,
+                          height: 24,
+                          color: const Color(0xFF3A3A3A),
+                          margin: const EdgeInsets.only(right: 12),
+                        ),
+                        // Campo número local
+                        Expanded(
+                          child: TextField(
+                            controller: _ctrl,
+                            keyboardType: TextInputType.phone,
+                            style: const TextStyle(color: _kMain, fontSize: 15),
+                            cursorColor: _kMain,
+                            decoration: const InputDecoration(
+                              hintText: 'Número de teléfono',
+                              hintStyle: TextStyle(color: _kSub, fontSize: 14),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(
+                                vertical: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
-                    Text(_error!,
-                        style: const TextStyle(color: _kDanger, fontSize: 13)),
+                    Text(
+                      _error!,
+                      style: const TextStyle(color: _kDanger, fontSize: 13),
+                    ),
                   ],
                   if (_success != null) ...[
                     const SizedBox(height: 12),
-                    Text(_success!,
-                        style: const TextStyle(
-                            color: Color(0xFF4CAF50), fontSize: 13)),
+                    Text(
+                      _success!,
+                      style: const TextStyle(
+                        color: Color(0xFF4CAF50),
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
-                  const SizedBox(height: 24),
-                  _SaveButton(onPressed: _saving ? null : _save, saving: _saving),
+                  const SizedBox(height: 28),
+                  _SaveButton(
+                    onPressed: _saving ? null : _save,
+                    saving: _saving,
+                  ),
                 ],
               ),
             ),
@@ -594,8 +759,9 @@ class _PasswordScreenState extends State<_PasswordScreen> {
       return;
     }
     if (newPwd.length < 6) {
-      setState(() =>
-          _error = 'La nueva contraseña debe tener al menos 6 caracteres.');
+      setState(
+        () => _error = 'La nueva contraseña debe tener al menos 6 caracteres.',
+      );
       return;
     }
 
@@ -606,8 +772,7 @@ class _PasswordScreenState extends State<_PasswordScreen> {
     });
 
     try {
-      final email =
-          Supabase.instance.client.auth.currentUser?.email ?? '';
+      final email = Supabase.instance.client.auth.currentUser?.email ?? '';
       await Supabase.instance.client.auth.signInWithPassword(
         email: email,
         password: oldPwd,
@@ -685,9 +850,7 @@ class _PasswordScreenState extends State<_PasswordScreen> {
                     obscure: !_showConfirm,
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _showConfirm
-                            ? Icons.visibility_off
-                            : Icons.visibility,
+                        _showConfirm ? Icons.visibility_off : Icons.visibility,
                         color: _kSub,
                         size: 20,
                       ),
@@ -697,14 +860,20 @@ class _PasswordScreenState extends State<_PasswordScreen> {
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 16),
-                    Text(_error!,
-                        style: const TextStyle(color: _kDanger, fontSize: 13)),
+                    Text(
+                      _error!,
+                      style: const TextStyle(color: _kDanger, fontSize: 13),
+                    ),
                   ],
                   if (_success != null) ...[
                     const SizedBox(height: 16),
-                    Text(_success!,
-                        style: const TextStyle(
-                            color: Color(0xFF4CAF50), fontSize: 13)),
+                    Text(
+                      _success!,
+                      style: const TextStyle(
+                        color: Color(0xFF4CAF50),
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 32),
                   _SaveButton(
@@ -726,7 +895,9 @@ class _PasswordScreenState extends State<_PasswordScreen> {
 // Helper: convierte ISO-3166-1 alpha-2 en emoji de bandera
 // ─────────────────────────────────────────────────────────────────────────────
 String _countryFlag(String code) {
-  return code.toUpperCase().runes
+  return code
+      .toUpperCase()
+      .runes
       .map((r) => String.fromCharCode(r + 0x1F1A5))
       .join();
 }
@@ -784,7 +955,6 @@ class _CountryScreenState extends State<_CountryScreen> {
     }
   }
 
-
   void _openPicker() {
     showCountryPicker(
       context: context,
@@ -836,7 +1006,9 @@ class _CountryScreenState extends State<_CountryScreen> {
                     child: Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 16),
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF1E1C22),
                         borderRadius: BorderRadius.circular(12),
@@ -862,14 +1034,20 @@ class _CountryScreenState extends State<_CountryScreen> {
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
-                    Text(_error!,
-                        style: const TextStyle(color: _kDanger, fontSize: 13)),
+                    Text(
+                      _error!,
+                      style: const TextStyle(color: _kDanger, fontSize: 13),
+                    ),
                   ],
                   if (_success != null) ...[
                     const SizedBox(height: 12),
-                    Text(_success!,
-                        style: const TextStyle(
-                            color: Color(0xFF4CAF50), fontSize: 13)),
+                    Text(
+                      _success!,
+                      style: const TextStyle(
+                        color: Color(0xFF4CAF50),
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 24),
                   _SaveButton(
@@ -972,18 +1150,14 @@ class _SaveButton extends StatelessWidget {
           backgroundColor: _kMain,
           foregroundColor: _kBg,
           disabledBackgroundColor: const Color(0xFF3A3A3A),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          // Botón completamente redondeado: el radio es la mitad de la altura.
+          shape: StadiumBorder(),
         ),
         child: saving
             ? const SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: _kBg,
-                ),
+                child: CircularProgressIndicator(strokeWidth: 2, color: _kBg),
               )
             : Text(
                 label,
