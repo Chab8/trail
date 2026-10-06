@@ -52,6 +52,38 @@ class ProfileService {
   }) async {
     await _client.from('profiles').update({'is_private': isPrivate}).eq('id', userId);
   }
+  /// Guarda el nombre visible. Si [displayName] está vacío, se borra.
+  Future<void> updateDisplayName({
+    required String userId,
+    required String displayName,
+  }) async {
+    final trimmed = displayName.trim();
+    await _client
+        .from('profiles')
+        .update({'display_name': trimmed.isEmpty ? null : trimmed})
+        .eq('id', userId);
+  }
+
+  /// Guarda la biografía. Si [bio] está vacía, se borra.
+  Future<void> updateBio({required String userId, required String bio}) async {
+    final trimmed = bio.trim();
+    await _client
+        .from('profiles')
+        .update({'bio': trimmed.isEmpty ? null : trimmed})
+        .eq('id', userId);
+  }
+
+  /// Activa o desactiva "Mostrar perfil de Spotify".
+  Future<void> updateShowSpotifyProfile({
+    required String userId,
+    required bool show,
+  }) async {
+    await _client
+        .from('profiles')
+        .update({'show_spotify_profile': show})
+        .eq('id', userId);
+  }
+
   /// Busca usuarios cuyo nombre de usuario contenga [query] (sin importar
   /// mayúsculas/minúsculas). Por ejemplo, buscar "ana" encuentra a "Ana99",
   /// "SantiAna", etc.

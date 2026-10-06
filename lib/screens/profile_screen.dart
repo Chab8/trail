@@ -1,8 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/completed_trail.dart';
@@ -27,15 +24,12 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _profileService = ProfileService();
   final _followService = FollowService();
-  final _imagePicker = ImagePicker();
   final _trailLibrary = TrailLibraryService.instance;
 
   bool _isLoading = true;
-  bool _isPickingAvatar = false;
   String? _errorMessage;
   String? _username;
   String? _avatarUrl;
-  Uint8List? _selectedAvatarBytes;
   List<CompletedTrail> _trails = [];
   int _followersCount = 0;
   int _followingCount = 0;
@@ -99,92 +93,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _pickAvatar() async {
-    setState(() => _isPickingAvatar = true);
-
-    try {
-      final image = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-        maxWidth: 1200,
-      );
-      if (image == null) return;
-
-      final bytes = await image.readAsBytes();
-      if (mounted) setState(() => _selectedAvatarBytes = bytes);
-
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId == null) return;
-
-      final extension = _extensionFromPath(image.path);
-      final filePath = '$userId/avatar.$extension';
-
-      // Sube la foto al bucket "avatars". upsert:true significa que si ya
-      // existe una foto anterior para este usuario, la reemplaza.
-      await Supabase.instance.client.storage
-          .from('avatars')
-          .uploadBinary(
-            filePath,
-            bytes,
-            fileOptions: FileOptions(
-              upsert: true,
-              contentType: _contentTypeFromExtension(extension),
-            ),
-          );
-
-      // Arma el link público de la foto. Le agregamos un "?v=..." al final
-      // para que el teléfono no muestre una versión vieja guardada en caché.
-      final publicUrl = Supabase.instance.client.storage
-          .from('avatars')
-          .getPublicUrl(filePath);
-      final freshUrl = '$publicUrl?v=${DateTime.now().millisecondsSinceEpoch}';
-
-      // Guarda el link en la tabla profiles, para que persista.
-      await _profileService.updateAvatarUrl(
-        userId: userId,
-        avatarUrl: freshUrl,
-      );
-
-      if (mounted) {
-        setState(() {
-          _avatarUrl = freshUrl;
-          _selectedAvatarBytes = null;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudo guardar la foto de perfil.'),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isPickingAvatar = false);
-    }
-  }
-
-  String _extensionFromPath(String path) {
-    final dotIndex = path.lastIndexOf('.');
-    if (dotIndex == -1 || dotIndex == path.length - 1) return 'jpg';
-    return path.substring(dotIndex + 1).toLowerCase();
-  }
-
-  String _contentTypeFromExtension(String extension) {
-    switch (extension) {
-      case 'png':
-        return 'image/png';
-      case 'heic':
-        return 'image/heic';
-      case 'webp':
-        return 'image/webp';
-      case 'jpg':
-      case 'jpeg':
-      default:
-        return 'image/jpeg';
-    }
-  }
-
   Future<void> _openSettings() async {
     await Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
@@ -239,42 +147,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Semantics(
-                        button: true,
-                        label: 'Elegir foto de perfil',
-                        child: InkWell(
-                          onTap: _isPickingAvatar ? null : _pickAvatar,
-                          borderRadius: BorderRadius.circular(48),
-                          child: Stack(
-                            children: [
-                              _AvatarImage(
-                                imageBytes: _selectedAvatarBytes,
-                                imageUrl: _avatarUrl,
-                              ),
-                              Positioned(
-                                right: 0,
-                                bottom: 0,
-                                child: Container(
-                                  width: 30,
-                                  height: 30,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.deepPurple,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: _isPickingAvatar
-                                      ? const Padding(
-                                          padding: EdgeInsets.all(7),
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Icon(Icons.edit, size: 17),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                      _AvatarImage(imageUrl: _avatarUrl),
                       const SizedBox(width: 20),
                       Expanded(
                         child: Row(
@@ -505,17 +378,14 @@ class TrailSummaryCard extends StatelessWidget {
 }
 
 class _AvatarImage extends StatelessWidget {
-  final Uint8List? imageBytes;
   final String? imageUrl;
 
-  const _AvatarImage({this.imageBytes, this.imageUrl});
+  const _AvatarImage({this.imageUrl});
 
   @override
   Widget build(BuildContext context) {
     Widget image = const Icon(Icons.person, size: 48, color: Colors.white70);
-    if (imageBytes != null) {
-      image = Image.memory(imageBytes!, fit: BoxFit.cover);
-    } else if (imageUrl != null && imageUrl!.isNotEmpty) {
+    if (imageUrl != null && imageUrl!.isNotEmpty) {
       image = Image.network(
         imageUrl!,
         fit: BoxFit.cover,

@@ -99,7 +99,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                         title: 'Nombre de usuario',
                         subtitle: _username.isEmpty ? '—' : _username,
                         onTap: () => _push(
-                          _UsernameScreen(
+                          UsernameScreen(
                             userId: _userId!,
                             currentUsername: _username,
                           ),
@@ -349,17 +349,21 @@ class _EmailScreen extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-pantalla: Nombre de usuario (editable)
 // ─────────────────────────────────────────────────────────────────────────────
-class _UsernameScreen extends StatefulWidget {
-  const _UsernameScreen({required this.userId, required this.currentUsername});
+class UsernameScreen extends StatefulWidget {
+  const UsernameScreen({
+    super.key,
+    required this.userId,
+    required this.currentUsername,
+  });
 
   final String userId;
   final String currentUsername;
 
   @override
-  State<_UsernameScreen> createState() => _UsernameScreenState();
+  State<UsernameScreen> createState() => _UsernameScreenState();
 }
 
-class _UsernameScreenState extends State<_UsernameScreen> {
+class _UsernameScreenState extends State<UsernameScreen> {
   late final TextEditingController _ctrl;
   final _profileService = ProfileService();
   bool _saving = false;

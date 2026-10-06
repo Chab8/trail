@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../widgets/settings_header.dart';
 import 'account_management_screen.dart';
+import 'edit_profile_screen.dart';
 import 'settings_section_screen.dart';
 import 'welcome_screen.dart';
 
@@ -14,6 +15,9 @@ enum _ItemKind {
 
   /// Abre "Manejo de la cuenta" (la configuración que ya existía).
   account,
+
+  /// Abre "Editar perfil".
+  editProfile,
 
   /// Cierra la sesión.
   logout,
@@ -77,6 +81,7 @@ class SettingsScreen extends StatelessWidget {
       _SettingsItem(
         'Editar perfil',
         iconAsset: 'assets/icons/edit white icon.svg',
+        kind: _ItemKind.editProfile,
       ),
       _SettingsItem(
         'Información personal',
@@ -211,6 +216,10 @@ class SettingsScreen extends StatelessWidget {
       case _ItemKind.account:
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const AccountManagementScreen()),
+        );
+      case _ItemKind.editProfile:
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const EditProfileScreen()),
         );
       case _ItemKind.section:
         Navigator.of(context).push(

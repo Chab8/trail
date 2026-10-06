@@ -6,6 +6,9 @@ class UserProfile {
   final bool isPrivate;
   final String? phone;
   final String? countryCode;
+  final String? displayName;
+  final String? bio;
+  final bool showSpotifyProfile;
   final DateTime? createdAt;
 
   UserProfile({
@@ -16,6 +19,9 @@ class UserProfile {
     this.isPrivate = false,
     this.phone,
     this.countryCode,
+    this.displayName,
+    this.bio,
+    this.showSpotifyProfile = true,
     this.createdAt,
   });
 
@@ -28,6 +34,9 @@ class UserProfile {
       isPrivate: map['is_private'] as bool? ?? false,
       phone: map['phone'] as String?,
       countryCode: map['country_code'] as String?,
+      displayName: map['display_name'] as String?,
+      bio: map['bio'] as String?,
+      showSpotifyProfile: map['show_spotify_profile'] as bool? ?? true,
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'] as String)
           : null,
