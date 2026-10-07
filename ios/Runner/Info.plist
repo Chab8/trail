@@ -28,6 +28,8 @@
 	<string>Trail necesita tu ubicación para mostrar tu posición y registrar tus recorridos mientras usás la app.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Trail necesita el micrófono para que puedas grabar y enviar mensajes de audio en el chat.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Trail necesita acceso a tus fotos para que puedas elegir una imagen de perfil.</string>
 	<key>UIApplicationSceneManifest</key>

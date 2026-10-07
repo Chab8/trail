@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/conversation.dart';
@@ -12,6 +14,8 @@ import '../models/conversation.dart';
 /// lo bloquea.
 class ChatService {
   final SupabaseClient _client = Supabase.instance.client;
+
+  static const String _audioBucket = 'chat-audios';
 
   /// Lista de mis conversaciones, de la más reciente a la más vieja,
   /// con el username/avatar del otro usuario y cuántos mensajes no
@@ -59,6 +63,53 @@ class ChatService {
     });
   }
 
+  /// Sube un audio grabado al bucket privado `chat-audios` y crea el
+  /// mensaje de tipo audio. El archivo se guarda en
+  /// `<conversación>/<mi id>/<archivo>.m4a` (las políticas de Supabase
+  /// exigen esa estructura). Si el mensaje no se puede crear, el archivo
+  /// subido se borra para no dejar basura.
+  Future<void> sendAudioMessage({
+    required String conversationId,
+    required File audioFile,
+    required int durationMs,
+  }) async {
+    final myId = _client.auth.currentUser?.id;
+    if (myId == null) return;
+
+    final storagePath =
+        '$conversationId/$myId/${DateTime.now().microsecondsSinceEpoch}.m4a';
+    final bucket = _client.storage.from(_audioBucket);
+
+    await bucket.upload(
+      storagePath,
+      audioFile,
+      fileOptions: const FileOptions(contentType: 'audio/mp4', upsert: false),
+    );
+
+    try {
+      await _client.from('messages').insert({
+        'conversation_id': conversationId,
+        'sender_id': myId,
+        'content': '',
+        'message_type': 'audio',
+        'audio_path': storagePath,
+        'audio_duration_ms': durationMs,
+      });
+    } catch (e) {
+      try {
+        await bucket.remove([storagePath]);
+      } catch (_) {}
+      rethrow;
+    }
+  }
+
+  /// Enlace temporal (1 hora) para reproducir un audio del bucket privado.
+  Future<String> getAudioUrl(String audioPath) {
+    return _client.storage
+        .from(_audioBucket)
+        .createSignedUrl(audioPath, 3600);
+  }
+
   /// Cambia el texto de un mensaje mío. Solo funciona con mensajes
   /// propios (lo controla una política de seguridad en Supabase).
   Future<void> editMessage({
@@ -71,9 +122,18 @@ class ChatService {
     }).eq('id', messageId);
   }
 
-  /// Borra un mensaje mío. Solo funciona con mensajes propios.
-  Future<void> deleteMessage(String messageId) async {
+  /// Borra un mensaje mío. Solo funciona con mensajes propios. Si era un
+  /// audio, también borra el archivo del almacenamiento.
+  Future<void> deleteMessage(String messageId, {String? audioPath}) async {
     await _client.from('messages').delete().eq('id', messageId);
+
+    if (audioPath != null) {
+      try {
+        await _client.storage.from(_audioBucket).remove([audioPath]);
+      } catch (_) {
+        // Si el archivo no se puede borrar, el mensaje ya no existe igual.
+      }
+    }
   }
 
   /// Marca como leídos todos los mensajes que me mandó la otra persona

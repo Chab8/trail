@@ -1,9 +1,15 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/chat_message.dart';
 import '../services/chat_service.dart';
+import '../widgets/chat_audio_player.dart';
 import 'user_profile_screen.dart';
 
 /// Pantalla de conversación con otra persona, estilo WhatsApp: burbujas
@@ -39,6 +45,17 @@ class _ChatScreenState extends State<ChatScreen>
   bool _isSending = false;
   bool _didInitialScroll = false;
 
+  // Grabación de audio.
+  static const Duration _minAudioDuration = Duration(seconds: 1);
+  static const Duration _maxAudioDuration = Duration(minutes: 5);
+  final AudioRecorder _recorder = AudioRecorder();
+  final Stopwatch _recordStopwatch = Stopwatch();
+  Timer? _recordTicker;
+  String? _recordPath;
+  bool _isRecording = false;
+  bool _isStoppingRecording = false;
+  Duration _recordElapsed = Duration.zero;
+
   String? get _myId => Supabase.instance.client.auth.currentUser?.id;
   bool get _hasDraft => _textController.text.isNotEmpty;
 
@@ -65,10 +82,156 @@ class _ChatScreenState extends State<ChatScreen>
 
   @override
   void dispose() {
+    _recordTicker?.cancel();
+    final recorder = _recorder;
+    final pendingPath = _recordPath;
+    unawaited(() async {
+      try {
+        if (await recorder.isRecording()) await recorder.cancel();
+      } catch (_) {}
+      await recorder.dispose();
+      if (pendingPath != null) _deleteTempFile(pendingPath);
+    }());
     _textController.dispose();
     _scrollController.dispose();
     _composerController.dispose();
     super.dispose();
+  }
+
+  void _showSnack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  void _deleteTempFile(String path) {
+    try {
+      final file = File(path);
+      if (file.existsSync()) file.deleteSync();
+    } catch (_) {}
+  }
+
+  /// Toca el micrófono: pide permiso (la primera vez) y empieza a grabar.
+  Future<void> _startRecording() async {
+    if (_isRecording || _isSending) return;
+
+    try {
+      final hasPermission = await _recorder.hasPermission();
+      if (!hasPermission) {
+        _showSnack(
+          'Necesitás permitir el uso del micrófono para grabar audios. '
+          'Podés activarlo en los ajustes del teléfono.',
+        );
+        return;
+      }
+
+      final dir = await getTemporaryDirectory();
+      final path =
+          '${dir.path}/trail_audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 64000,
+          sampleRate: 44100,
+          numChannels: 1,
+        ),
+        path: path,
+      );
+
+      _recordPath = path;
+      _recordStopwatch
+        ..reset()
+        ..start();
+      _recordTicker?.cancel();
+      _recordTicker = Timer.periodic(const Duration(milliseconds: 200), (_) {
+        if (!mounted) return;
+        final elapsed = _recordStopwatch.elapsed;
+        if (elapsed >= _maxAudioDuration) {
+          // Llegó al máximo: se corta y se envía solo.
+          _stopRecordingAndSend();
+          return;
+        }
+        setState(() => _recordElapsed = elapsed);
+      });
+
+      setState(() {
+        _isRecording = true;
+        _recordElapsed = Duration.zero;
+      });
+    } catch (e) {
+      _showSnack('No se pudo empezar a grabar el audio.');
+    }
+  }
+
+  /// Corta la grabación y devuelve (archivo, duración), o null si falló.
+  Future<(File, Duration)?> _finishRecording() async {
+    _recordTicker?.cancel();
+    _recordStopwatch.stop();
+    final duration = _recordStopwatch.elapsed;
+
+    String? path;
+    try {
+      path = await _recorder.stop();
+    } catch (_) {}
+    path ??= _recordPath;
+
+    _recordPath = null;
+    if (mounted) {
+      setState(() {
+        _isRecording = false;
+        _recordElapsed = Duration.zero;
+      });
+    }
+
+    if (path == null) return null;
+    return (File(path), duration);
+  }
+
+  /// Toca la papelera: descarta la grabación sin enviar nada.
+  Future<void> _cancelRecording() async {
+    if (!_isRecording || _isStoppingRecording) return;
+    _isStoppingRecording = true;
+    try {
+      final result = await _finishRecording();
+      if (result != null) _deleteTempFile(result.$1.path);
+    } finally {
+      _isStoppingRecording = false;
+    }
+  }
+
+  /// Toca enviar durante la grabación: corta, sube el audio y lo envía.
+  Future<void> _stopRecordingAndSend() async {
+    if (!_isRecording || _isStoppingRecording) return;
+    _isStoppingRecording = true;
+
+    final result = await _finishRecording();
+    _isStoppingRecording = false;
+    if (result == null) {
+      _showSnack('No se pudo guardar el audio.');
+      return;
+    }
+    final (file, duration) = result;
+
+    if (duration < _minAudioDuration) {
+      _deleteTempFile(file.path);
+      _showSnack('El audio es muy corto. Grabá al menos 1 segundo.');
+      return;
+    }
+
+    if (mounted) setState(() => _isSending = true);
+    try {
+      await _chatService.sendAudioMessage(
+        conversationId: widget.conversationId,
+        audioFile: file,
+        durationMs: duration.inMilliseconds,
+      );
+      _scrollToBottomAfterFrame();
+    } catch (e) {
+      _showSnack('No se pudo enviar el audio.');
+    } finally {
+      _deleteTempFile(file.path);
+      if (mounted) setState(() => _isSending = false);
+    }
   }
 
   Future<void> _send() async {
@@ -133,15 +296,17 @@ class _ChatScreenState extends State<ChatScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: SvgPicture.asset(
-                'assets/icons/edit.svg',
-                width: 22,
-                height: 22,
+            // Los audios no se pueden editar, solo borrar.
+            if (!message.isAudio)
+              ListTile(
+                leading: SvgPicture.asset(
+                  'assets/icons/edit.svg',
+                  width: 22,
+                  height: 22,
+                ),
+                title: const Text('Editar mensaje'),
+                onTap: () => Navigator.of(sheetContext).pop('edit'),
               ),
-              title: const Text('Editar mensaje'),
-              onTap: () => Navigator.of(sheetContext).pop('edit'),
-            ),
             ListTile(
               leading: SvgPicture.asset(
                 'assets/icons/delete red.svg',
@@ -241,7 +406,10 @@ class _ChatScreenState extends State<ChatScreen>
     if (confirmed != true) return;
 
     try {
-      await _chatService.deleteMessage(message.id);
+      await _chatService.deleteMessage(
+        message.id,
+        audioPath: message.isAudio ? message.audioPath : null,
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -431,7 +599,88 @@ class _ChatScreenState extends State<ChatScreen>
     );
   }
 
+  /// Barra que reemplaza al campo de texto mientras se graba un audio:
+  /// papelera para descartar, punto rojo con el tiempo, y botón de enviar.
+  Widget _buildRecordingComposer() {
+    final minutes = _recordElapsed.inMinutes.toString();
+    final seconds = (_recordElapsed.inSeconds % 60).toString().padLeft(2, '0');
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        8,
+        16,
+        MediaQuery.viewInsetsOf(context).bottom > 0 ? 8 : 16,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 33,
+              decoration: BoxDecoration(
+                color: const Color(0x805B5A5F),
+                borderRadius: BorderRadius.circular(17),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: _cancelRecording,
+                    behavior: HitTestBehavior.opaque,
+                    child: const SizedBox(
+                      width: 33,
+                      height: 33,
+                      child: Icon(
+                        Icons.delete_outline_rounded,
+                        size: 22,
+                        color: Color(0xFFE01414),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    width: 9,
+                    height: 9,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE01414),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$minutes:$seconds',
+                    style: const TextStyle(
+                      color: Color(0xFFFEFEFE),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Grabando…',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Color(0xB3FEFEFE), fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          _ChatActionButton(
+            assetPath: 'assets/buttons/send button.svg',
+            onTap: _stopRecordingAndSend,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildComposer() {
+    if (_isRecording) return _buildRecordingComposer();
+
     return Padding(
       padding: EdgeInsets.fromLTRB(
         16,
@@ -533,7 +782,9 @@ class _ChatScreenState extends State<ChatScreen>
                       assetPath: _hasDraft
                           ? 'assets/buttons/send button.svg'
                           : 'assets/buttons/microphone button.svg',
-                      onTap: _hasDraft && !_isSending ? _send : null,
+                      onTap: _hasDraft
+                          ? (_isSending ? null : _send)
+                          : (_isSending ? null : _startRecording),
                     ),
                   ),
                 ],
@@ -676,14 +927,24 @@ class _MessageBubble extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    message.content,
-                    style: TextStyle(
+                  if (message.isAudio)
+                    ChatAudioPlayer(
+                      // La key evita que el reproductor se mezcle con otro
+                      // mensaje cuando la lista se actualiza.
+                      key: ValueKey('audio_${message.id}'),
+                      audioPath: message.audioPath!,
+                      durationMs: message.audioDurationMs ?? 0,
                       color: textColor,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
+                    )
+                  else
+                    Text(
+                      message.content,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
                   const SizedBox(height: 4),
                   Row(
                     mainAxisSize: MainAxisSize.min,
