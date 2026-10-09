@@ -366,9 +366,38 @@ class TrailSummaryCard extends StatelessWidget {
             ),
             // ── Likes: corazón + contador, abajo a la derecha ────────────
             Positioned(
-              right: 92,
+              right: 32,
               bottom: 0,
-              child: TrailLikeButton(trailId: trail.id),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SvgPicture.asset(
+                        'assets/icons/public.svg',
+                        width: 16,
+                        height: 16,
+                        colorFilter: const ColorFilter.mode(
+                          Color(0xFF654CDD),
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Text(
+                        'Public',
+                        style: TextStyle(
+                          color: Color(0xFFFEFEFE),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 8),
+                  TrailLikeButton(trailId: trail.id),
+                ],
+              ),
             ),
           ],
         ),

@@ -540,7 +540,7 @@ class _TrailDetailDialogState extends State<TrailDetailDialog> {
                     const Text(
                       'Public',
                       style: TextStyle(
-                        color: _colorSub,
+                        color: _colorMain,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
